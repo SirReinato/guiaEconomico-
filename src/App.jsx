@@ -3,6 +3,7 @@ import styled, { keyframes } from "styled-components";
 import AppRoutes from "./routes/AppRoutes";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { MesProvider } from "./context/MesContext";
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { GastosProvider } from "./context/GastosContext";
 import { SaldoProvider } from "./context/SaldoContext";
 import { EssencialProvider } from "./context/EssencialContext";
@@ -10,6 +11,11 @@ import Login from "./pages/Login";
 
 function AppContent() {
     const { user, loading } = useAuth();
+    const { needRefresh, updateServiceWorker } = useRegisterSW({
+        onRegistered(r) { console.log('SW registered', r); },
+        onNeedRefresh() { console.log('New version available'); }
+    });
+
 
     if (loading) {
         return (
@@ -30,6 +36,11 @@ function AppContent() {
                 <EssencialProvider>
                     <GastosProvider>
                         <AppRoutes />
+                        {needRefresh && (
+                            <UpdateBanner onClick={() => updateServiceWorker(true)}>
+                                🚀 Nova versão disponível! Clique para atualizar
+                            </UpdateBanner>
+                        )}
                     </GastosProvider>
                 </EssencialProvider>
             </SaldoProvider>
@@ -78,4 +89,30 @@ const LoadingText = styled.p`
     color: ${({ theme }) => theme.colors.textPrimary || "#e0e1dd"};
     font-size: 1rem;
     letter-spacing: 0.5px;
+`;
+
+const UpdateBanner = styled.button`
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    z-index: 9999;
+    background: linear-gradient(135deg, #0d6efd, #00b3ff);
+    color: #ffffff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 15px rgba(0, 179, 255, 0.4);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 179, 255, 0.6);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
 `;
