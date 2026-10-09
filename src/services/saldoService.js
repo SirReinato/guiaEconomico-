@@ -5,6 +5,8 @@ import {
     updateDoc,
     deleteDoc,
     doc,
+    getDoc,
+    setDoc,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "../config/firebase";
 import { parseCurrency } from "../utils/formatters";
@@ -71,5 +73,32 @@ export async function removerReceitaAPI(id) {
     } catch (error) {
         console.error("Erro ao remover receita no Firestore:", error);
         return false;
+    }
+}
+
+const CONFIG_SALARIOS_DOC = ["configuracoes", "salarios_ajustados"];
+
+export async function getSalariosAjustadosAPI() {
+    if (!isFirebaseConfigured) return {};
+    try {
+        const docRef = doc(db, CONFIG_SALARIOS_DOC[0], CONFIG_SALARIOS_DOC[1]);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            return snap.data().salarios || {};
+        }
+        return {};
+    } catch (error) {
+        console.warn("Erro ao buscar salários ajustados no Firestore:", error);
+        return {};
+    }
+}
+
+export async function salvarSalariosAjustadosAPI(salarios) {
+    if (!isFirebaseConfigured) return;
+    try {
+        const docRef = doc(db, CONFIG_SALARIOS_DOC[0], CONFIG_SALARIOS_DOC[1]);
+        await setDoc(docRef, { salarios, atualizadoEm: new Date().toISOString() }, { merge: true });
+    } catch (error) {
+        console.warn("Erro ao salvar salários ajustados no Firestore:", error);
     }
 }

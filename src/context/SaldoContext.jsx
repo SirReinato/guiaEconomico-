@@ -5,6 +5,8 @@ import {
     adicionarReceitaAPI,
     atualizarReceitaAPI,
     removerReceitaAPI,
+    getSalariosAjustadosAPI,
+    salvarSalariosAjustadosAPI,
 } from "../services/saldoService";
 import { parseCurrency } from "../utils/currencyUtils";
 import { useMes } from "./MesContext";
@@ -28,8 +30,22 @@ export function SaldoProvider({ children }) {
 
     useEffect(() => {
         async function carregar() {
-            const dados = await getSaldo();
-            setSaldo(dados);
+            const [dadosSaldo, dadosSalariosRemotos] = await Promise.all([
+                getSaldo(),
+                getSalariosAjustadosAPI(),
+            ]);
+            setSaldo(dadosSaldo);
+            if (dadosSalariosRemotos && Object.keys(dadosSalariosRemotos).length > 0) {
+                setSalariosPorMes((prev) => {
+                    const mesclado = { ...prev, ...dadosSalariosRemotos };
+                    try {
+                        localStorage.setItem(STORAGE_KEY_SALARIOS, JSON.stringify(mesclado));
+                    } catch (err) {
+                        console.warn("Erro ao atualizar cache local de salários:", err);
+                    }
+                    return mesclado;
+                });
+            }
         }
         carregar();
     }, []);
@@ -40,6 +56,7 @@ export function SaldoProvider({ children }) {
         } catch (e) {
             console.warn("Erro ao salvar salários no localStorage:", e);
         }
+        salvarSalariosAjustadosAPI(salariosPorMes);
     }, [salariosPorMes]);
 
     const adicionarReceita = async (novaReceita) => {
