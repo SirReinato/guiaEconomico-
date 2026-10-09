@@ -6,9 +6,16 @@ export function useResumoCartoes(ciclo = "atual") {
     const totaisPorCartao = getFaturaPorCartao(ciclo);
     const nomeCartao = Object.keys(totaisPorCartao);
     const valorPorCartao = Object.values(totaisPorCartao).map(
-        (valor) => `R$ ${valor.toFixed(2)}`
+        (valor) => `R$ ${valor.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })}`
     );
-    const valorTotal = `R$ ${getFaturaTotalCartao(ciclo).toFixed(2)}`;
+    const totalGeral = getFaturaTotalCartao(ciclo);
+    const valorTotal = `R$ ${totalGeral.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 
     return {
         nomeCartao,

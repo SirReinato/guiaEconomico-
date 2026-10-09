@@ -5,6 +5,7 @@ export default function Card({
     titulo,
     destaque,
     $bgAlert,
+    $isNegative,
     textTitulo,
     textDescricao,
     $bgClaro,
@@ -13,10 +14,16 @@ export default function Card({
     onClick,
     ...props
 }) {
+    const ehNegativo =
+        $isNegative !== undefined
+            ? $isNegative
+            : typeof destaque === "string" && destaque.includes("-");
+
     return (
         <Container
             {...props}
             $bgClaro={$bgClaro}
+            $isNegative={ehNegativo}
             $temClique={Boolean(onClick)}
             onClick={onClick}
             role={onClick ? "button" : undefined}
@@ -29,10 +36,16 @@ export default function Card({
             }}
         >
             <HeaderCard>
-                <Titulos $titulo={$titulo} $tituloRoxo={$tituloRoxo}>
+                <Titulos
+                    $titulo={$titulo}
+                    $tituloRoxo={$tituloRoxo}
+                    $isNegative={ehNegativo}
+                >
                     {titulo}
                 </Titulos>
-                <Destaque $bgAlert={$bgAlert}>{destaque}</Destaque>
+                <Destaque $bgAlert={$bgAlert} $isNegative={ehNegativo}>
+                    {destaque}
+                </Destaque>
             </HeaderCard>
             {(textTitulo || textDescricao) && (
                 <CardCorpoDescricao>
@@ -81,7 +94,14 @@ const Container = styled.div`
     min-height: 0;
 
     cursor: ${(props) => (props.$temClique ? "pointer" : "default")};
-    border: none;
+    border: ${(props) =>
+        props.$isNegative
+            ? "1px solid rgba(239, 68, 68, 0.45)"
+            : "none"};
+    box-shadow: ${(props) =>
+        props.$isNegative
+            ? "0 4px 14px rgba(239, 68, 68, 0.15)"
+            : "0 4px 6px rgba(0, 0, 0, 0.1)"};
     text-align: left;
 
     &:hover {
@@ -108,7 +128,11 @@ export const Titulos = styled.h2`
     font-weight: bold;
     white-space: nowrap;
     ${(props) =>
-        props.$tituloRoxo
+        props.$isNegative
+            ? `
+      color: #ef4444;
+    `
+            : props.$tituloRoxo
             ? `
       background: linear-gradient(to right, #820ad1, #00b3ff);
       -webkit-background-clip: text;
@@ -129,11 +153,18 @@ const Destaque = styled.h2`
     letter-spacing: 0.15em;
     white-space: nowrap;
     flex-shrink: 0;
-    background: ${({ $bgAlert }) =>
-        $bgAlert
+    background: ${({ $isNegative, $bgAlert }) =>
+        $isNegative
+            ? "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)"
+            : $bgAlert
             ? "linear-gradient(to right, #820ad1, #00b3ff)"
             : "transparent"};
-    color: ${({ theme }) => theme.colors.valor};
+    color: ${({ theme, $isNegative }) =>
+        $isNegative ? "#ffffff" : theme.colors.valor};
+    box-shadow: ${({ $isNegative }) =>
+        $isNegative ? "0 0 16px rgba(239, 68, 68, 0.45)" : "none"};
+    border: ${({ $isNegative }) =>
+        $isNegative ? "1px solid rgba(254, 202, 202, 0.35)" : "none"};
 `;
 
 const CardCorpoDescricao = styled.div`

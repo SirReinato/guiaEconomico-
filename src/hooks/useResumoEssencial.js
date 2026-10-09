@@ -50,14 +50,20 @@ export function useResumoEssenciais() {
     );
 
     const valores = Object.values(agruparPorTipo).map(
-        (valor) => `R$ ${valor.toFixed(2)}`
+        (valor) => `R$ ${valor.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })}`
     );
 
     const total = Object.values(agruparPorTipo).reduce(
         (acc, val) => acc + val,
         0
     );
-    const destaque = `R$ ${total.toFixed(2)}`;
+    const destaque = `R$ ${total.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 
     return {
         nomes,

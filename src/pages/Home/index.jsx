@@ -26,7 +26,6 @@ export default function Home() {
     } = useResumoEvitaveis();
     const { nomes, valores } = useResumoEssenciais();
     const { nomeCartao, valorPorCartao, valorTotal } = useResumoCartoes();
-    const { totalGeralGastos } = useResumoFinanceiro();
 
     const {
         showModalGasto,
@@ -40,8 +39,25 @@ export default function Home() {
         adicionarEssencial,
     } = useShowModals();
 
-    const { saldoLiquido } = useResumoFinanceiro();
-    const saldoFormatado = `R$ ${saldoLiquido}`;
+    const { saldoLiquido, totalGeralGastos } = useResumoFinanceiro();
+    const saldoNum = parseFloat(saldoLiquido) || 0;
+    const isSaldoNegativo = saldoNum < 0;
+    const saldoFormatado = isSaldoNegativo
+        ? `- R$ ${Math.abs(saldoNum).toLocaleString("pt-BR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+          })}`
+        : `R$ ${saldoNum.toLocaleString("pt-BR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+          })}`;
+
+    const despesasNum = parseFloat(totalGeralGastos) || 0;
+    const despesasFormatadas = `R$ ${despesasNum.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+
     const { getEntradasDoMes } = useSaldo();
     const { getGanhosMozi } = useGastos();
     const { totalGeral: ganhosMoziTotal = 0 } = getGanhosMozi
@@ -64,6 +80,14 @@ export default function Home() {
         dataRef.getFullYear(),
         dataRef.getMonth()
     );
+    const totalEssenciaisNum =
+        typeof totalEssenciaisMes === "number"
+            ? totalEssenciaisMes
+            : parseFloat(totalEssenciaisMes) || 0;
+    const totalEssenciaisFormatados = `R$ ${totalEssenciaisNum.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 
     return (
         <ContainerGeralHome>
@@ -82,6 +106,7 @@ export default function Home() {
                     $widthSm
                     $heightSm
                     $bgAlert
+                    $isNegative={isSaldoNegativo}
                     titulo="Saldo"
                     destaque={saldoFormatado}
                     onClick={() => setShowModalSaldo(true)}
@@ -102,7 +127,7 @@ export default function Home() {
                     $heightSm
                     $bgAlert
                     titulo="Despesas"
-                    destaque={totalGeralGastos}
+                    destaque={despesasFormatadas}
                 >
                     <CardSaldoGrafico />
                 </Card>
@@ -127,7 +152,7 @@ export default function Home() {
                 <Card
                     $bgAlert
                     titulo="Essenciais"
-                    destaque={`R$ ${totalEssenciaisMes}`}
+                    destaque={totalEssenciaisFormatados}
                     textTitulo={nomes}
                     textDescricao={valores}
                     onClick={() => setShowModalEssencial(true)}

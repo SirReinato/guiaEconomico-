@@ -75,26 +75,11 @@ export function useProjecaoSaldo(qtd = 3) {
                 return acc + parseCurrency(item.valor) * fator;
             }, 0);
 
-        // essenciais (se houver lançamento específico no mês usa-o; caso contrário, usa a base fixa recorrente)
-        const essenciaisDoMes = (essenciais || []).filter((item) => {
-            const data = parseDataSegura(item.data);
-            return (
-                data &&
-                data.getMonth() === mesIndex &&
-                data.getFullYear() === ano
-            );
-        });
-
-        const essenciaisTotal =
-            essenciaisDoMes.length > 0
-                ? essenciaisDoMes.reduce(
-                      (acc, item) => acc + parseCurrency(item.valor),
-                      0
-                  )
-                : (essenciais || []).reduce(
-                      (acc, item) => acc + parseCurrency(item.valor),
-                      0
-                  );
+        // essenciais (base fixa recorrente)
+        const essenciaisTotal = (essenciais || []).reduce(
+            (acc, item) => acc + parseCurrency(item.valor),
+            0
+        );
 
         // saldo líquido do mês
         const valor = Number((salario + entradasExtras - (saidas + essenciaisTotal)).toFixed(2));

@@ -12,7 +12,11 @@ export default function ListaProximosMeses({ dados = [] }) {
                 <Linha key={index}>
                     <Mes>{item.mes}</Mes>
                     <Valor positivo={item.valor >= 0}>
-                        R$ {item.valor.toLocaleString("pt-BR")}
+                        {item.valor < 0 ? "- " : ""}R${" "}
+                        {Math.abs(item.valor).toLocaleString("pt-BR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        })}
                     </Valor>
                 </Linha>
             ))}
