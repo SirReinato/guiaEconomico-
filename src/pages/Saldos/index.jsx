@@ -31,10 +31,11 @@ export default function Saldos() {
     }, [saldo, mes, ano]);
 
     // 2. Cálculos consolidados do mês
-    const { totalReceitas, totalSalario, totalExtras } = useMemo(() => {
+    const { totalReceitas, totalSalario, totalExtras, temSalarioLancado } = useMemo(() => {
         let total = 0;
         let sal = 0;
         let ext = 0;
+        let achouSalario = false;
 
         receitasDoMes.forEach((item) => {
             const val = parseCurrency(item.valor);
@@ -42,14 +43,17 @@ export default function Saldos() {
             const tipoLower = (item.tipo || "").toLowerCase();
             if (tipoLower.includes("salari") || tipoLower.includes("salário")) {
                 sal += val;
+                achouSalario = true;
             } else {
                 ext += val;
             }
         });
 
-        // Se o usuário configurou um salário padrão pelo contexto que ainda não tem doc específico
+        // Salário do mês (ajustado ou herdado do mês anterior)
         const salarioConfig = parseCurrency(getSalarioDoMes ? getSalarioDoMes(ano, mes) : 0);
-        if (sal === 0 && salarioConfig > 0) {
+
+        // Se não houver salário lançado no mês, usa a base herdada do mês anterior
+        if (!achouSalario && salarioConfig > 0) {
             sal = salarioConfig;
             total += salarioConfig;
         }
@@ -58,6 +62,8 @@ export default function Saldos() {
             totalReceitas: total,
             totalSalario: sal,
             totalExtras: ext,
+            temSalarioLancado: achouSalario,
+            salarioBaseHerdado: !achouSalario ? salarioConfig : 0,
         };
     }, [receitasDoMes, getSalarioDoMes, ano, mes]);
 
@@ -119,13 +125,28 @@ export default function Saldos() {
                 <CardMetrica $bordaCor="#00b3ff">
                     <CardTop>
                         <CardRotulo>Salário Base</CardRotulo>
-                        <BadgeAzul>Fixo / Principal</BadgeAzul>
+                        {temSalarioLancado ? (
+                            <BadgeAzul>Confirmado</BadgeAzul>
+                        ) : (
+                            <BadgeProjetado>Projetado do anterior</BadgeProjetado>
+                        )}
                     </CardTop>
                     <CardValor>{formatCurrency(totalSalario)}</CardValor>
                     <CardRodape>
                         <CardDetalhe>
-                            Base de cálculo da regra 50/30/20 e reserva
+                            {temSalarioLancado
+                                ? "Lançamento registrado para este mês"
+                                : "Base do mês anterior (ajuste ao receber)"}
                         </CardDetalhe>
+                        {!temSalarioLancado && totalSalario > 0 && (
+                            <BotaoRegistrarSalario
+                                type="button"
+                                onClick={() => setModalNovaReceitaAberto(true)}
+                                title="Confirmar ou ajustar o valor recebido deste mês"
+                            >
+                                ✍️ Ajustar
+                            </BotaoRegistrarSalario>
+                        )}
                     </CardRodape>
                 </CardMetrica>
 
@@ -419,6 +440,33 @@ const BadgeAzul = styled.span`
     border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: 6px;
     padding: 3px 8px;
+`;
+
+const BadgeProjetado = styled.span`
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 6px;
+    padding: 3px 8px;
+`;
+
+const BotaoRegistrarSalario = styled.button`
+    background: rgba(0, 179, 255, 0.15);
+    border: 1px solid rgba(0, 179, 255, 0.4);
+    color: #7dd3fc;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: #00b3ff;
+        color: #ffffff;
+    }
 `;
 
 const BadgeRoxo = styled.span`

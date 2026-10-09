@@ -2,8 +2,29 @@ import { useForm } from "react-hook-form";
 import styled from "styled-components";
 import { Titulos } from "../Card";
 
-export default function ModalReceita({ onClose, onSubmit }) {
-    const { register, handleSubmit, reset } = useForm();
+import { useMes } from "../../context/MesContext";
+
+export default function ModalReceita({ onClose, onSubmit, dataPadrao, valorPadrao, tipoPadrao = "Salario" }) {
+    const { mesReferencia } = useMes() || {};
+
+    const getDataInicial = () => {
+        if (dataPadrao) return dataPadrao;
+        if (mesReferencia) {
+            const ano = mesReferencia.getFullYear();
+            const mes = String(mesReferencia.getMonth() + 1).padStart(2, "0");
+            const dia = "05"; // dia padrão comum para salário
+            return `${ano}-${mes}-${dia}`;
+        }
+        return new Date().toISOString().split("T")[0];
+    };
+
+    const { register, handleSubmit, reset } = useForm({
+        defaultValues: {
+            data: getDataInicial(),
+            valor: valorPadrao || "",
+            tipo: tipoPadrao,
+        },
+    });
 
     const handleFormSubmit = (data) => {
         onSubmit(data);

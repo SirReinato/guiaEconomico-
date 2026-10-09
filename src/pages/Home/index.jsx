@@ -56,7 +56,7 @@ export default function Home() {
 
     const dadosProximosMeses = useProjecaoSaldo(3);
 
-    const { mesReferencia, nomeMesAno } = useMes() || {};
+    const { mesReferencia, nomeMesAno, voltarMes, avancarMes } = useMes() || {};
     const dataRef = mesReferencia || new Date();
 
     const { getTotalEssenciais } = useEssencial();
@@ -67,6 +67,16 @@ export default function Home() {
 
     return (
         <ContainerGeralHome>
+            <BarraMesNavegacaoHome>
+                <BotaoMesNav onClick={voltarMes} title="Mês anterior">
+                    ◀
+                </BotaoMesNav>
+                <MesLabelHome>{nomeMesAno}</MesLabelHome>
+                <BotaoMesNav onClick={avancarMes} title="Próximo mês">
+                    ▶
+                </BotaoMesNav>
+            </BarraMesNavegacaoHome>
+
             <HeaderContainer>
                 <Card
                     $widthSm
@@ -196,4 +206,42 @@ const ContainerMainCards = styled.div`
         flex-direction: column;
         gap: 16px;
     }
+`;
+
+const BarraMesNavegacaoHome = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: #0d121f;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 6px 18px;
+    margin-bottom: 4px;
+`;
+
+const BotaoMesNav = styled.button`
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: #1e293b;
+        color: #00b3ff;
+    }
+`;
+
+const MesLabelHome = styled.span`
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    text-transform: capitalize;
+    min-width: 140px;
+    text-align: center;
+    letter-spacing: 0.5px;
 `;
