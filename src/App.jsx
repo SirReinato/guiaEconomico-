@@ -3,7 +3,6 @@ import styled, { keyframes } from "styled-components";
 import AppRoutes from "./routes/AppRoutes";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { MesProvider } from "./context/MesContext";
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { GastosProvider } from "./context/GastosContext";
 import { SaldoProvider } from "./context/SaldoContext";
 import { EssencialProvider } from "./context/EssencialContext";
@@ -11,11 +10,6 @@ import Login from "./pages/Login";
 
 function AppContent() {
     const { user, loading } = useAuth();
-    const { needRefresh, updateServiceWorker } = useRegisterSW({
-        onRegistered(r) { console.log('SW registered', r); },
-        onNeedRefresh() { console.log('New version available'); }
-    });
-
 
     if (loading) {
         return (
@@ -36,11 +30,6 @@ function AppContent() {
                 <EssencialProvider>
                     <GastosProvider>
                         <AppRoutes />
-                        {needRefresh && (
-                            <UpdateBanner onClick={() => updateServiceWorker(true)}>
-                                🚀 Nova versão disponível! Clique para atualizar
-                            </UpdateBanner>
-                        )}
                     </GastosProvider>
                 </EssencialProvider>
             </SaldoProvider>
@@ -89,40 +78,4 @@ const LoadingText = styled.p`
     color: ${({ theme }) => theme.colors.textPrimary || "#e0e1dd"};
     font-size: 1rem;
     letter-spacing: 0.5px;
-`;
-
-const UpdateBanner = styled.button`
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    z-index: 9999;
-    background: linear-gradient(90deg, #0d6efd, #00b3ff);
-    color: #ffffff;
-    border: none;
-    padding: 8px 16px;
-    font-weight: 600;
-    font-size: 0.82rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 2px 10px rgba(0, 179, 255, 0.35);
-    cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
-
-    @media (max-width: 768px) {
-        top: 52px;
-        padding: 6px 12px;
-        font-size: 0.78rem;
-    }
-
-    &:hover {
-        background: linear-gradient(90deg, #0b5ed7, #0099db);
-    }
-
-    &:active {
-        opacity: 0.9;
-    }
 `;
