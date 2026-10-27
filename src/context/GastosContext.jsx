@@ -287,8 +287,10 @@ export function GastosProvider({ children }) {
                     const fator = g.responsavel === "dividido" ? 0.5 : 1.0;
                     return {
                         ...g,
+                        cartaoOriginal: g.cartao,
+                        cartao: "Cartões do Renato",
                         valorCalculado: valorTotal * fator,
-                        descricaoExibicao: `${g.tipo || "Gasto"} (${g.cartao})`,
+                        descricaoExibicao: `${g.tipo || "Gasto"} (Pago no ${g.cartao} pelo Renato)`,
                     };
                 });
         }

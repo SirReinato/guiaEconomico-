@@ -80,7 +80,11 @@ export default function Cartoes() {
         return todosGastosDoCiclo.filter((g) => {
             const cNome = (g.cartao || "").toLowerCase();
             const alvo = cartaoSelecionado.toLowerCase();
-            return cNome === alvo;
+            return (
+                cNome === alvo ||
+                (g.cartaoOriginal && alvo.includes("renato")) ||
+                (cNome.includes("renato") && alvo.includes("renato"))
+            );
         });
     }, [todosGastosDoCiclo, cartaoSelecionado]);
 
