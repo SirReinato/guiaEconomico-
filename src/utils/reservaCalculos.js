@@ -30,9 +30,9 @@ export function calcularIdade(dataStr) {
 /**
  * Calcula os anos decorridos desde o início da planilha em 01/09/2021.
  */
-export function calcularAnoDecorrido(dataStr) {
+export function calcularAnoDecorrido(dataStr, anoBase = 2021) {
     const data = new Date(dataStr + "T12:00:00");
-    const anos = data.getFullYear() - 2021;
+    const anos = data.getFullYear() - anoBase;
     const fracaoMeses = (data.getMonth() - 8 + 1) / 12;
     return Number(Math.max(0.1, anos + fracaoMeses).toFixed(1));
 }
@@ -68,17 +68,9 @@ export function getMesSeguinteChave(chave) {
 }
 
 /**
- * Gera a série completa mensal da Reserva de Emergência desde 01/09/2021
- * até os 100 anos de idade do usuário (01/09/2097).
- *
- * @param {Object} params
- * @param {number} params.salarioMensal - Salário base mensal para cálculo dos 6 meses protegidos
- * @param {number} [params.saldoSobraMes] - Saldo que sobrou no mês atual (salário - gastos)
- * @param {number} [params.taxaSelicMensal] - Taxa Selic mensal em decimal (ex: 0.0093 para 0.93% a.m.)
- * @param {Object} [params.configManual] - Ajustes manuais de saldo real, rendimento ou taxa
- * @param {Date} [params.mesReferencia] - Mês selecionado no app (padrão: mês atual)
- * @param {Object} [params.mapaProjecoes] - Mapa de saldos projetados por chave YYYY-MM
- * @param {number} [params.totalEssenciais] - Despesas essenciais recorrentes base
+ * Gera a série completa mensal da Reserva de Emergência.
+ * Para Renato: inicia em 01/09/2021 com os dados históricos até 2097.
+ * Para Ingrid: inicia do zero a partir do mês atual (Outubro/2026) até 2097.
  */
 export function gerarProjecaoReserva({
     salarioMensal = 3000,
@@ -88,6 +80,7 @@ export function gerarProjecaoReserva({
     mesReferencia = new Date(),
     mapaProjecoes = {},
     totalEssenciais = 0,
+    isIngrid = false,
 } = {}) {
     const salario = Number(salarioMensal) > 0 ? Number(salarioMensal) : 3000;
     const meta6Meses = salario * 6;
@@ -102,9 +95,6 @@ export function gerarProjecaoReserva({
             ? Math.pow(1 + configManual.taxaManual / 100, 1 / 12) - 1
             : taxaSelicMensal || 0.0093;
 
-    // Poupança base futura: se configurada manualmente, usa o valor fixo;
-    // caso contrário, calcula a sobra padrão esperada (salário - despesas essenciais recorrentes)
-    // NUNCA forçar 1000 arbitrário!
     const poupancaPadraoFutura =
         configManual?.poupancaFixa !== undefined &&
         configManual?.poupancaFixa !== null &&
@@ -118,46 +108,95 @@ export function gerarProjecaoReserva({
 
     const linhas = [];
 
-    // 1. Processar dados históricos conhecidos
-    for (let i = 0; i < DADOS_HISTORICOS_INICIAIS.length; i++) {
-        const item = { ...DADOS_HISTORICOS_INICIAIS[i] };
-        const chaveItem = item.data.slice(0, 7);
-        const ehMesAtual = chaveItem === chaveMesAtual;
+    let anoCursor;
+    let mesCursorIndex;
+    let valorAnterior;
 
-        // Se for o mês atual e tiver ajuste manual de saldo real na caixinha
-        if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
-            item.valorFinal = Number(configManual.saldoReal);
-            if (configManual?.rendimentoManual !== undefined && configManual?.rendimentoManual !== null) {
-                item.rendimento = Number(configManual.rendimentoManual);
-            }
-        }
+    if (isIngrid) {
+        // Ingrid começa do zero no mês de Outubro/2026 (ou mês ativo)
+        const mesInicioAno = 2026;
+        const mesInicioIndex = 9; // Outubro
+        const strMesInicio = String(mesInicioIndex + 1).padStart(2, "0");
+        const dataInicioStr = `${mesInicioAno}-${strMesInicio}-01`;
+        const chaveInicio = `${mesInicioAno}-${strMesInicio}`;
 
-        const mesesProtegidos = salario > 0 ? Number((item.valorFinal / salario).toFixed(2)) : 0;
-        const statusMeta = classificarStatusMeta(item.valorFinal, meta6Meses);
+        const saldoInicialConfig =
+            configManual?.saldoReal !== undefined && configManual?.saldoReal !== null
+                ? Number(configManual.saldoReal)
+                : 0;
+
+        const ehMesAtualInicio = chaveInicio === chaveMesAtual;
+        const poupancaInicial = saldoSobraMes !== null && Number.isFinite(Number(saldoSobraMes))
+            ? Number(saldoSobraMes)
+            : poupancaPadraoFutura;
+
+        const valorFinalInicio = saldoInicialConfig > 0 ? saldoInicialConfig : Math.max(0, poupancaInicial);
+        const rendimentoInicio = Number(configManual?.rendimentoManual || 0);
 
         linhas.push({
-            ...item,
-            ehHistorico: true,
-            ehMesAtual,
-            mesesProtegidos,
-            statusMeta,
+            data: dataInicioStr,
+            mes: NOMES_MESES[mesInicioIndex],
+            valorInicial: 0,
+            poupanca: poupancaInicial,
+            taxa: taxaPadrao,
+            valorFinal: valorFinalInicio,
+            rendimento: rendimentoInicio,
+            anoDecorrido: 0.1,
+            idade: calcularIdade(dataInicioStr),
+            ehHistorico: false,
+            ehMesAtual: ehMesAtualInicio,
+            mesesProtegidos: salario > 0 ? Number((valorFinalInicio / salario).toFixed(2)) : 0,
+            statusMeta: classificarStatusMeta(valorFinalInicio, meta6Meses),
         });
+
+        anoCursor = mesInicioAno;
+        mesCursorIndex = mesInicioIndex + 1;
+        if (mesCursorIndex > 11) {
+            mesCursorIndex = 0;
+            anoCursor++;
+        }
+        valorAnterior = valorFinalInicio;
+    } else {
+        // Renato: Carrega os dados históricos conhecidos (2021 - 2026)
+        for (let i = 0; i < DADOS_HISTORICOS_INICIAIS.length; i++) {
+            const item = { ...DADOS_HISTORICOS_INICIAIS[i] };
+            const chaveItem = item.data.slice(0, 7);
+            const ehMesAtual = chaveItem === chaveMesAtual;
+
+            if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
+                item.valorFinal = Number(configManual.saldoReal);
+                if (configManual?.rendimentoManual !== undefined && configManual?.rendimentoManual !== null) {
+                    item.rendimento = Number(configManual.rendimentoManual);
+                }
+            }
+
+            const mesesProtegidos = salario > 0 ? Number((item.valorFinal / salario).toFixed(2)) : 0;
+            const statusMeta = classificarStatusMeta(item.valorFinal, meta6Meses);
+
+            linhas.push({
+                ...item,
+                ehHistorico: true,
+                ehMesAtual,
+                mesesProtegidos,
+                statusMeta,
+            });
+        }
+
+        const ultimaLinhaHistorica = linhas[linhas.length - 1];
+        const ultimaData = new Date(ultimaLinhaHistorica.data + "T12:00:00");
+
+        anoCursor = ultimaData.getFullYear();
+        mesCursorIndex = ultimaData.getMonth() + 1;
+
+        if (mesCursorIndex > 11) {
+            mesCursorIndex = 0;
+            anoCursor++;
+        }
+
+        valorAnterior = ultimaLinhaHistorica.valorFinal;
     }
 
-    // 2. Projetar até o mês em que o usuário completa 100 anos: 01/09/2097
-    const ultimaLinhaHistorica = linhas[linhas.length - 1];
-    const ultimaData = new Date(ultimaLinhaHistorica.data + "T12:00:00");
-
-    let anoCursor = ultimaData.getFullYear();
-    let mesCursorIndex = ultimaData.getMonth() + 1; // Próximo mês
-
-    if (mesCursorIndex > 11) {
-        mesCursorIndex = 0;
-        anoCursor++;
-    }
-
-    let valorAnterior = ultimaLinhaHistorica.valorFinal;
-
+    // Projeta até os 100 anos: 01/09/2097
     while (anoCursor < 2097 || (anoCursor === 2097 && mesCursorIndex <= 8)) {
         const strMes = String(mesCursorIndex + 1).padStart(2, "0");
         const dataStr = `${anoCursor}-${strMes}-01`;
@@ -170,7 +209,6 @@ export function gerarProjecaoReserva({
         let poupanca = poupancaPadraoFutura;
         let taxa = taxaPadrao;
 
-        // 1. Prioridade máxima: Aporte confirmado manualmente no fechamento do mês
         const aporteConfirmado =
             configManual?.aportesConfirmados?.[chaveItem] ||
             configManual?.aportesConfirmados?.[chaveMesAnterior];
@@ -178,26 +216,21 @@ export function gerarProjecaoReserva({
         if (aporteConfirmado && aporteConfirmado.sobra !== undefined && aporteConfirmado.sobra !== null) {
             poupanca = Number(aporteConfirmado.sobra);
         } else if (ehMesAtual) {
-            // 2. Se o mês da linha for o mês ativo atual do app e tiver saldo restante calculado
             if (saldoSobraMes !== null && saldoSobraMes !== undefined && Number.isFinite(Number(saldoSobraMes))) {
                 poupanca = Number(saldoSobraMes);
             }
         } else if (ehMesSeguinteAoAtual) {
-            // 3. O mês imediatamente seguinte ao mês ativo (ex: no ciclo de Setembro, a linha 01/10/2026):
-            // O valor do aporte/retirada no dia 1º é rigorosamente o que sobrou (ou faltou) no mês ativo anterior!
             if (saldoSobraMes !== null && saldoSobraMes !== undefined && Number.isFinite(Number(saldoSobraMes))) {
                 poupanca = Number(saldoSobraMes);
             } else if (mapaProjecoes[chaveMesAnterior] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveMesAnterior]))) {
                 poupanca = Number(mapaProjecoes[chaveMesAnterior]);
             }
         } else if (mapaProjecoes[chaveMesAnterior] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveMesAnterior]))) {
-            // 4. Meses futuros projetados pelo sistema (ex: 01/11 recebe sobra projetada de Outubro)
             poupanca = Number(mapaProjecoes[chaveMesAnterior]);
         } else if (mapaProjecoes[chaveItem] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveItem]))) {
             poupanca = Number(mapaProjecoes[chaveItem]);
         }
 
-        // Se o aporte for negativo (retirada por saldo negativo), subtrai do saldo e calcula rendimento sobre o restante
         const baseParaRendimento = Math.max(0, valorInicial + poupanca);
         let rendimento = Number((baseParaRendimento * taxa).toFixed(2));
         let valorFinal = Number(Math.max(0, valorInicial + poupanca + rendimento).toFixed(2));
@@ -210,7 +243,7 @@ export function gerarProjecaoReserva({
         }
 
         const idade = calcularIdade(dataStr);
-        const anoDecorrido = calcularAnoDecorrido(dataStr);
+        const anoDecorrido = calcularAnoDecorrido(dataStr, isIngrid ? 2026 : 2021);
         const mesesProtegidos = salario > 0 ? Number((valorFinal / salario).toFixed(2)) : 0;
         const statusMeta = classificarStatusMeta(valorFinal, meta6Meses);
 
@@ -239,12 +272,10 @@ export function gerarProjecaoReserva({
         }
     }
 
-    // 3. Extrair métricas consolidadas e marcos
+    // Extrair métricas consolidadas e marcos
     const linhaAtual = linhas.find((l) => l.ehMesAtual) || linhas.find((l) => l.data.startsWith(chaveMesAtual)) || linhas[0];
     const estaProtegidoNoMesAtual = linhaAtual ? (linhaAtual.valorFinal >= meta6Meses) : false;
 
-    // Se o mês atual estiver protegido, exibe onde foi atingido (passado).
-    // Se NÃO estiver protegido, exibe a projeção futura de quando baterá a meta!
     let marco6Meses = null;
     if (estaProtegidoNoMesAtual) {
         const marcoPassado = linhas.find((l) => l.valorFinal >= meta6Meses);
@@ -258,7 +289,7 @@ export function gerarProjecaoReserva({
             };
         }
     } else {
-        const marcoFuturo = linhas.find((l) => l.data >= linhaAtual.data && l.valorFinal >= meta6Meses);
+        const marcoFuturo = linhas.find((l) => l.data >= linhaAtual?.data && l.valorFinal >= meta6Meses);
         if (marcoFuturo) {
             marco6Meses = {
                 atingido: false,
@@ -316,13 +347,6 @@ function encontrarPrimeiroAcimaDe(linhas, valor) {
     };
 }
 
-/**
- * Classifica a meta conforme o valor acumulado:
- * - 'abaixo': abaixo da reserva de 6 meses
- * - 'protegido': 6 meses ou mais, abaixo de R$ 1 milhão
- * - 'milhao': R$ 1.000.000 a R$ 1.999.999
- * - 'multimilhao': R$ 2.000.000 ou mais
- */
 export function classificarStatusMeta(valorFinal, meta6Meses) {
     if (valorFinal >= 2000000) {
         const milhoes = Math.floor(valorFinal / 1000000);

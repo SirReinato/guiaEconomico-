@@ -21,7 +21,7 @@ export default function ContainerGeral() {
         adicionarEssencial,
     } = useShowModals();
 
-    const { user, logout, temAcessoInsights } = useAuth();
+    const { user, logout, temAcessoInsights, nomePerfil, isIngrid } = useAuth();
     const location = useLocation();
 
     const [menuAcoesAberto, setMenuAcoesAberto] = useState(false);
@@ -68,6 +68,9 @@ export default function ContainerGeral() {
                                     <UserNameDropdown>
                                         {user?.displayName || "Usuário"}
                                     </UserNameDropdown>
+                                    <BadgePerfilDropdown $isIngrid={isIngrid}>
+                                        {nomePerfil || (isIngrid ? "Perfil: Ingrid" : "Perfil: Renato")}
+                                    </BadgePerfilDropdown>
                                     <UserEmailDropdown>{user?.email}</UserEmailDropdown>
                                     <LinkConfigMobile
                                         to="/configuracoes"
@@ -131,6 +134,9 @@ export default function ContainerGeral() {
                                     <UserName>
                                         {user.displayName || "Usuário"}
                                     </UserName>
+                                    <BadgePerfilDesktop $isIngrid={isIngrid}>
+                                        {nomePerfil || (isIngrid ? "Perfil: Ingrid" : "Perfil: Renato")}
+                                    </BadgePerfilDesktop>
                                     <UserEmail>{user.email}</UserEmail>
                                 </UserInfo>
                                 <BotaoSair onClick={logout}>
@@ -372,6 +378,22 @@ const UserNameDropdown = styled.p`
     text-overflow: ellipsis;
 `;
 
+const BadgePerfilDropdown = styled.span`
+    align-self: flex-start;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: ${({ $isIngrid }) =>
+        $isIngrid
+            ? "linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(219, 39, 119, 0.35))"
+            : "linear-gradient(135deg, rgba(130, 10, 209, 0.25), rgba(0, 179, 255, 0.35))"};
+    color: ${({ $isIngrid }) => ($isIngrid ? "#f472b6" : "#00b3ff")};
+    border: 1px solid
+        ${({ $isIngrid }) =>
+            $isIngrid ? "rgba(236, 72, 153, 0.4)" : "rgba(0, 179, 255, 0.4)"};
+`;
+
 const UserEmailDropdown = styled.p`
     font-size: 0.72rem;
     color: #94a3b8;
@@ -518,6 +540,10 @@ const UserInfo = styled.div`
     text-align: center;
     width: 100%;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
 `;
 
 const UserName = styled.p`
@@ -527,6 +553,22 @@ const UserName = styled.p`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin: 0;
+`;
+
+const BadgePerfilDesktop = styled.span`
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: ${({ $isIngrid }) =>
+        $isIngrid
+            ? "linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(219, 39, 119, 0.35))"
+            : "linear-gradient(135deg, rgba(130, 10, 209, 0.25), rgba(0, 179, 255, 0.35))"};
+    color: ${({ $isIngrid }) => ($isIngrid ? "#f472b6" : "#00b3ff")};
+    border: 1px solid
+        ${({ $isIngrid }) =>
+            $isIngrid ? "rgba(236, 72, 153, 0.4)" : "rgba(0, 179, 255, 0.4)"};
 `;
 
 const UserEmail = styled.p`
@@ -535,6 +577,7 @@ const UserEmail = styled.p`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin: 0;
 `;
 
 const BotaoSair = styled.button`

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
-import { isProprietarioInsights } from "../utils/permissoes";
+import { isProprietarioInsights, isEmailAutorizado, getPerfilUsuario } from "../utils/permissoes";
 
 const AuthContext = createContext();
 
@@ -10,13 +10,10 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState("");
 
-    const allowedEmail = import.meta.env.VITE_ALLOWED_EMAIL?.trim().toLowerCase();
-
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
-                // Se houver restrição de e-mail configurada no .env
-                if (allowedEmail && currentUser.email?.toLowerCase() !== allowedEmail) {
+                if (!isEmailAutorizado(currentUser.email)) {
                     setAuthError(
                         `O e-mail ${currentUser.email} não tem permissão de acesso a este painel financeiro.`
                     );
@@ -33,7 +30,7 @@ export function AuthProvider({ children }) {
         });
 
         return () => unsubscribe();
-    }, [allowedEmail]);
+    }, []);
 
     const loginComGoogle = async () => {
         setAuthError("");
@@ -41,9 +38,9 @@ export function AuthProvider({ children }) {
             const result = await signInWithPopup(auth, googleProvider);
             const loggedUser = result.user;
 
-            if (allowedEmail && loggedUser.email?.toLowerCase() !== allowedEmail) {
+            if (!isEmailAutorizado(loggedUser.email)) {
                 setAuthError(
-                    `Acesso negado: o e-mail ${loggedUser.email} não é o proprietário deste dashboard.`
+                    `Acesso negado: o e-mail ${loggedUser.email} não tem autorização neste dashboard.`
                 );
                 await signOut(auth);
                 setUser(null);
@@ -77,6 +74,10 @@ export function AuthProvider({ children }) {
         }
     };
 
+    const perfilAtivo = useMemo(() => {
+        return getPerfilUsuario(user?.email);
+    }, [user?.email]);
+
     const temAcessoInsights = useMemo(() => {
         return isProprietarioInsights(user?.email);
     }, [user?.email]);
@@ -92,6 +93,10 @@ export function AuthProvider({ children }) {
                 isAuthorized: Boolean(user),
                 temAcessoInsights,
                 isProprietario: temAcessoInsights,
+                perfilAtivo,
+                isIngrid: perfilAtivo === "ingrid",
+                isRenato: perfilAtivo === "renato",
+                nomePerfil: perfilAtivo === "ingrid" ? "Ingrid" : "Renato",
             }}
         >
             {children}

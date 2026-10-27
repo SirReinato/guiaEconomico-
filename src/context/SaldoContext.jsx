@@ -10,36 +10,52 @@ import {
 } from "../services/saldoService";
 import { parseCurrency } from "../utils/currencyUtils";
 import { useMes } from "./MesContext";
+import { useAuth } from "./AuthContext";
 
 const SaldoContext = createContext();
 
-const STORAGE_KEY_SALARIOS = "guia_economico_salarios_ajustados";
+function getStorageKeySalarios(perfil = "renato") {
+    return perfil === "ingrid"
+        ? "guia_economico_salarios_ajustados_ingrid"
+        : "guia_economico_salarios_ajustados";
+}
 
 export function SaldoProvider({ children }) {
+    const { perfilAtivo } = useAuth() || {};
+    const perfil = perfilAtivo || "renato";
     const [saldo, setSaldo] = useState([]);
     const { mesReferencia } = useMes() || {};
-    const [salarioPadrao, setSalarioPadrao] = useState(); // valor recorrente padrão
-    const [salariosPorMes, setSalariosPorMes] = useState(() => {
-        try {
-            const salvo = localStorage.getItem(STORAGE_KEY_SALARIOS);
-            return salvo ? JSON.parse(salvo) : {};
-        } catch {
-            return {};
-        }
-    });
+    const [salarioPadrao, setSalarioPadrao] = useState();
+    const [salariosPorMes, setSalariosPorMes] = useState({});
 
+    // Carrega salários locais e remotos quando o perfil mudar
     useEffect(() => {
+        let isMounted = true;
+        const storageKey = getStorageKeySalarios(perfil);
+
+        let salvoLocal = {};
+        try {
+            const salvo = localStorage.getItem(storageKey);
+            if (salvo) salvoLocal = JSON.parse(salvo);
+        } catch {
+            salvoLocal = {};
+        }
+
+        setSalariosPorMes(salvoLocal);
+
         async function carregar() {
             const [dadosSaldo, dadosSalariosRemotos] = await Promise.all([
-                getSaldo(),
-                getSalariosAjustadosAPI(),
+                getSaldo(perfil),
+                getSalariosAjustadosAPI(perfil),
             ]);
+            if (!isMounted) return;
             setSaldo(dadosSaldo);
+
             if (dadosSalariosRemotos && Object.keys(dadosSalariosRemotos).length > 0) {
                 setSalariosPorMes((prev) => {
                     const mesclado = { ...prev, ...dadosSalariosRemotos };
                     try {
-                        localStorage.setItem(STORAGE_KEY_SALARIOS, JSON.stringify(mesclado));
+                        localStorage.setItem(storageKey, JSON.stringify(mesclado));
                     } catch (err) {
                         console.warn("Erro ao atualizar cache local de salários:", err);
                     }
@@ -48,19 +64,25 @@ export function SaldoProvider({ children }) {
             }
         }
         carregar();
-    }, []);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [perfil]);
 
     useEffect(() => {
+        if (!salariosPorMes || Object.keys(salariosPorMes).length === 0) return;
+        const storageKey = getStorageKeySalarios(perfil);
         try {
-            localStorage.setItem(STORAGE_KEY_SALARIOS, JSON.stringify(salariosPorMes));
+            localStorage.setItem(storageKey, JSON.stringify(salariosPorMes));
         } catch (e) {
             console.warn("Erro ao salvar salários no localStorage:", e);
         }
-        salvarSalariosAjustadosAPI(salariosPorMes);
-    }, [salariosPorMes]);
+        salvarSalariosAjustadosAPI(salariosPorMes, perfil);
+    }, [salariosPorMes, perfil]);
 
     const adicionarReceita = async (novaReceita) => {
-        const receitaSalva = await adicionarReceitaAPI(novaReceita);
+        const receitaSalva = await adicionarReceitaAPI(novaReceita, perfil);
         if (receitaSalva) {
             setSaldo((prev) => [...prev, receitaSalva]);
         }
@@ -68,7 +90,7 @@ export function SaldoProvider({ children }) {
     };
 
     const atualizarReceita = async (id, dadosAtualizados) => {
-        const receitaAtualizada = await atualizarReceitaAPI(id, dadosAtualizados);
+        const receitaAtualizada = await atualizarReceitaAPI(id, dadosAtualizados, perfil);
         if (receitaAtualizada) {
             setSaldo((prev) =>
                 prev.map((item) => (item.id === id ? { ...item, ...receitaAtualizada } : item))
@@ -78,7 +100,7 @@ export function SaldoProvider({ children }) {
     };
 
     const removerReceita = async (id) => {
-        const sucesso = await removerReceitaAPI(id);
+        const sucesso = await removerReceitaAPI(id, perfil);
         if (sucesso) {
             setSaldo((prev) => prev.filter((item) => item.id !== id));
         }
@@ -111,15 +133,13 @@ export function SaldoProvider({ children }) {
             : 0;
     };
 
-    // Obter salário do mês (ajustado manualmente, lançado em receita ou herdado do mês anterior/último salário)
+    // Obter salário do mês
     const getSalarioDoMes = (ano, mes) => {
-        // 1. Ajuste manual explícito para este mês
         const ajuste = salariosPorMes[`${ano}-${mes}`];
         if (ajuste !== undefined && ajuste !== null && ajuste !== "") {
             return ajuste;
         }
 
-        // 2. Se há lançamento de salário registrado para este mês específico
         const lancamentoMes = (saldo || []).find((item) => {
             if (!item.data) return false;
             const tipo = item.tipo?.toLowerCase() || "";
@@ -132,7 +152,6 @@ export function SaldoProvider({ children }) {
             return lancamentoMes.valor;
         }
 
-        // 3. Fallback: salário padrão configurado ou último salário registrado do mês anterior
         return salarioPadrao || getUltimoSalarioLancado();
     };
 
@@ -141,7 +160,6 @@ export function SaldoProvider({ children }) {
         const ano = dataRef.getFullYear();
         const mes = dataRef.getMonth();
 
-        // Receitas cadastradas no mês selecionado
         const receitasDoMes = (saldo || []).filter((item) => {
             if (!item.data) return false;
             const data = new Date(
@@ -150,23 +168,23 @@ export function SaldoProvider({ children }) {
             return data.getMonth() === mes && data.getFullYear() === ano;
         });
 
-        // Verifica se já existe um lançamento de salário entre as receitas deste mês
+        const totalReceitas = receitasDoMes.reduce(
+            (acc, item) => acc + parseCurrency(item.valor),
+            0
+        );
+
+        // Se houver salário configurado e nenhuma receita de salário cadastrada no mês
         const temSalarioLancado = receitasDoMes.some((item) => {
             const tipo = item.tipo?.toLowerCase() || "";
             return tipo.includes("salari") || tipo.includes("salário");
         });
 
-        const totalLancamentos = receitasDoMes.reduce(
-            (acc, item) => acc + parseCurrency(item.valor),
-            0
-        );
+        if (!temSalarioLancado) {
+            const salarioConfig = parseCurrency(getSalarioDoMes(ano, mes));
+            return totalReceitas + salarioConfig;
+        }
 
-        // Se NÃO tem salário lançado neste mês, soma o salário base herdado/ajustado do mês anterior
-        const salarioComplementar = !temSalarioLancado
-            ? parseCurrency(getSalarioDoMes(ano, mes))
-            : 0;
-
-        return (totalLancamentos + salarioComplementar).toFixed(2);
+        return totalReceitas;
     };
 
     return (
@@ -176,11 +194,12 @@ export function SaldoProvider({ children }) {
                 adicionarReceita,
                 atualizarReceita,
                 removerReceita,
-                getEntradasDoMes,
-                getSalarioDoMes,
-                ajustarSalarioMes,
                 salarioPadrao,
                 setSalarioPadrao,
+                getSalarioDoMes,
+                ajustarSalarioMes,
+                salariosPorMes,
+                getEntradasDoMes,
             }}
         >
             {children}

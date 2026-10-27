@@ -14,7 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 import AcessoRestritoInsights from "../../components/AcessoRestritoInsights";
 
 export default function Insights() {
-    const { temAcessoInsights } = useAuth() || {};
+    const { temAcessoInsights, perfilAtivo, isIngrid } = useAuth() || {};
     const { mesReferencia, nomeMesAno, voltarMes, avancarMes } = useMes() || {};
     const { getSalarioDoMes, getEntradasDoMes } = useSaldo() || {};
     const { saldoLiquido } = useResumoFinanceiro() || {};
@@ -54,7 +54,7 @@ export default function Insights() {
         let isMounted = true;
         async function carregarConfig() {
             try {
-                const config = await getReservaConfig();
+                const config = await getReservaConfig(perfilAtivo || "renato");
                 if (isMounted) {
                     setConfigReserva(config);
                 }
@@ -66,7 +66,7 @@ export default function Insights() {
         return () => {
             isMounted = false;
         };
-    }, [temAcessoInsights]);
+    }, [temAcessoInsights, perfilAtivo]);
 
     // 2. Carregar Selic oficial da API do BCB
     useEffect(() => {
@@ -102,7 +102,7 @@ export default function Insights() {
     };
 
     const handleSalvarConfig = async (novoConfig) => {
-        const atualizado = await salvarReservaConfig(novoConfig);
+        const atualizado = await salvarReservaConfig(novoConfig, perfilAtivo || "renato");
         setConfigReserva(atualizado);
     };
 
@@ -176,8 +176,9 @@ export default function Insights() {
             mesReferencia: mesReferencia || new Date(),
             mapaProjecoes,
             totalEssenciais,
+            isIngrid,
         });
-    }, [temAcessoInsights, salarioAtual, sobraMesAtual, selicData.taxaMensal, configReserva, mesReferencia, mapaProjecoes, totalEssenciais]);
+    }, [temAcessoInsights, salarioAtual, sobraMesAtual, selicData.taxaMensal, configReserva, mesReferencia, mapaProjecoes, totalEssenciais, isIngrid]);
 
     const {
         linhas,

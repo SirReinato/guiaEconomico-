@@ -7,6 +7,9 @@ import { parseCurrency } from "../../utils/currencyUtils";
 import { useMes } from "../../context/MesContext";
 import { useResumoFinanceiro } from "../../hooks/useResumoFinanceiro";
 import ModalEditarGasto from "../../components/ModalEditarGasto";
+import ModalGerenciarCartoes from "../../components/ModalGerenciarCartoes";
+import ModalFaturaItau from "../../components/ModalFaturaItau";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Cartoes() {
     const {
@@ -14,6 +17,9 @@ export default function Cartoes() {
         getGastosDoCiclo,
         atualizarGasto,
         removerGasto,
+        cartoesAtivos,
+        faturasItau,
+        chaveMesAtual,
     } = useGastos();
     const {
         nomeMesAno,
@@ -23,57 +29,59 @@ export default function Cartoes() {
         avancarMes,
         voltarMes,
     } = useMes();
+    const { isIngrid } = useAuth() || {};
 
     // estado para controlar ciclo ativo
     const [ciclo, setCiclo] = useState("atual");
     const [cartaoSelecionado, setCartaoSelecionado] = useState("todos");
     const [responsavelSelecionado, setResponsavelSelecionado] = useState("todos");
     const [gastoParaEditar, setGastoParaEditar] = useState(null);
+    const [modalCartoesAberto, setModalCartoesAberto] = useState(false);
+    const [modalItauAberto, setModalItauAberto] = useState(false);
 
     const { saldoLiquido } = useResumoFinanceiro();
     const fatura = getFaturaPorCartao(ciclo, mesReferencia);
-    const gastos = ["Nubank", "Picpay", "Banco do Brasil"].map((cartao) => ({
-        cartao,
-        valor: fatura[cartao] ? fatura[cartao].toFixed(2) : "0.00",
-    }));
 
-    const cartoesInfo = useMemo(
-        () => [
-            { id: "Nubank", nome: "Nubank", cor: "#820ad1", icone: "🟣" },
-            { id: "Banco do Brasil", nome: "Banco do Brasil", cor: "#eab308", icone: "🟡" },
-            { id: "Picpay", nome: "Picpay", cor: "#10b981", icone: "🟢" },
-        ],
-        []
-    );
+    // Mapeamento dinâmico dos cartões ativos para os cards superiores
+    const listaCartoes = useMemo(() => {
+        return (cartoesAtivos || []).map((c) => {
+            const id = c.id || c.nome;
+            const valor = fatura[id] !== undefined ? fatura[id] : fatura[c.nome] || 0;
+            return {
+                id,
+                cartao: c.nome,
+                cor: c.cor || "#820ad1",
+                icone: c.icone || "💳",
+                valor: valor.toFixed(2),
+                integrado: !!c.integrado,
+            };
+        });
+    }, [cartoesAtivos, fatura]);
 
-    // lista detalhada dos gastos do ciclo ativo por cartão
-    const gastosNubank = useMemo(
-        () => getGastosDoCiclo("Nubank", ciclo, mesReferencia),
-        [getGastosDoCiclo, ciclo, mesReferencia]
-    );
-    const gastosPicpay = useMemo(
-        () => getGastosDoCiclo("Picpay", ciclo, mesReferencia),
-        [getGastosDoCiclo, ciclo, mesReferencia]
-    );
-    const gastosBB = useMemo(
-        () => getGastosDoCiclo("Banco do Brasil", ciclo, mesReferencia),
-        [getGastosDoCiclo, ciclo, mesReferencia]
-    );
-
+    // Coleta todos os gastos do ciclo para os cartões ativos
     const todosGastosDoCiclo = useMemo(() => {
-        return [...gastosNubank, ...gastosBB, ...gastosPicpay].sort((a, b) => {
+        const todos = [];
+        (cartoesAtivos || []).forEach((c) => {
+            const id = c.id || c.nome;
+            const itens = getGastosDoCiclo(id, ciclo, mesReferencia) || [];
+            todos.push(...itens);
+        });
+
+        return todos.sort((a, b) => {
             const dataA = new Date(a.data?.includes("T") ? a.data : `${a.data}T12:00:00`);
             const dataB = new Date(b.data?.includes("T") ? b.data : `${b.data}T12:00:00`);
             return dataB - dataA;
         });
-    }, [gastosNubank, gastosBB, gastosPicpay]);
+    }, [cartoesAtivos, getGastosDoCiclo, ciclo, mesReferencia]);
 
     // Gastos filtrados pelo cartão selecionado
     const gastosPorCartao = useMemo(() => {
         if (cartaoSelecionado === "todos") return todosGastosDoCiclo;
-        return todosGastosDoCiclo.filter(
-            (g) => g.cartao?.toLowerCase() === cartaoSelecionado.toLowerCase()
-        );
+        return todosGastosDoCiclo.filter((g) => {
+            const cNome = (g.cartao || "").toLowerCase();
+            const alvo = cartaoSelecionado.toLowerCase();
+            return cNome === alvo;
+        });
     }, [todosGastosDoCiclo, cartaoSelecionado]);
 
     // Auditoria dos responsáveis dentro do universo do cartão selecionado
@@ -87,7 +95,7 @@ export default function Cartoes() {
         let qtdDividido = 0;
 
         gastosPorCartao.forEach((g) => {
-            const v = parseCurrency(g.valor);
+            const v = g.valorCalculado !== undefined ? g.valorCalculado : parseCurrency(g.valor);
             const resp = g.responsavel || "meu";
             totalGeral += v;
 
@@ -121,18 +129,24 @@ export default function Cartoes() {
     }, [gastosPorCartao, responsavelSelecionado]);
 
     const totalFiltrado = useMemo(() => {
-        return gastosFiltrados.reduce((acc, g) => acc + parseCurrency(g.valor), 0);
+        return gastosFiltrados.reduce((acc, g) => {
+            const v = g.valorCalculado !== undefined ? g.valorCalculado : parseCurrency(g.valor);
+            return acc + v;
+        }, 0);
     }, [gastosFiltrados]);
 
-    const contagens = useMemo(
-        () => ({
-            todos: todosGastosDoCiclo.length,
-            Nubank: gastosNubank.length,
-            "Banco do Brasil": gastosBB.length,
-            Picpay: gastosPicpay.length,
-        }),
-        [todosGastosDoCiclo, gastosNubank, gastosBB, gastosPicpay]
-    );
+    const contagens = useMemo(() => {
+        const mapa = { todos: todosGastosDoCiclo.length };
+        (cartoesAtivos || []).forEach((c) => {
+            const id = c.id || c.nome;
+            const qtd = (getGastosDoCiclo(id, ciclo, mesReferencia) || []).length;
+            mapa[id] = qtd;
+            mapa[c.nome] = qtd;
+        });
+        return mapa;
+    }, [cartoesAtivos, getGastosDoCiclo, ciclo, mesReferencia, todosGastosDoCiclo.length]);
+
+    const valorItauAtual = faturasItau?.[chaveMesAtual] || 0;
 
     return (
         <ContainerLista>
@@ -158,6 +172,17 @@ export default function Cartoes() {
                 )}
             </BarraStatusMes>
 
+            {/* Linha de Ações: Gerenciar Cartões e Ajuste Fatura Itaú */}
+            <BarraAcoesTop>
+                <BotaoGerenciarCartoes onClick={() => setModalCartoesAberto(true)}>
+                    ⚙️ {isIngrid ? "+ Gerenciar / Adicionar Cartões" : "Gerenciar Cartões"}
+                </BotaoGerenciarCartoes>
+
+                <BotaoItauAcao onClick={() => setModalItauAberto(true)}>
+                    💳 Fatura Itaú (R$ {valorItauAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </BotaoItauAcao>
+            </BarraAcoesTop>
+
             {/* Filtro de ciclo */}
             <Filtro>
                 <button
@@ -181,29 +206,29 @@ export default function Cartoes() {
             </Filtro>
 
             <HeaderContainer>
-                {gastos.map((g) => {
-                    const isSelecionado = cartaoSelecionado === g.cartao;
+                {listaCartoes.map((g) => {
+                    const isSelecionado = cartaoSelecionado === g.cartao || cartaoSelecionado === g.id;
                     return (
                         <Card
-                            key={g.cartao}
+                            key={g.id}
                             $bgAlert
                             $widthSm
                             $heightSm
                             $bgClaro
-                            titulo={g.cartao}
+                            titulo={`${g.icone} ${g.cartao}`}
                             destaque={`R$ ${g.valor}`}
-                            textTitulo={["Fatura", "Limite Disponível"]}
+                            textTitulo={["Fatura", g.integrado ? "Tipo" : "Ciclo"]}
                             textDescricao={[
                                 `Ciclo: ${ciclo}`,
-                                "R$ 2.600,00", // mock do limite
+                                g.integrado ? "Integrado" : "Manual",
                             ]}
                             onClick={() =>
-                                setCartaoSelecionado(isSelecionado ? "todos" : g.cartao)
+                                setCartaoSelecionado(isSelecionado ? "todos" : g.id)
                             }
                             style={{
                                 cursor: "pointer",
-                                outline: isSelecionado ? "2px solid #820ad1" : "2px solid transparent",
-                                boxShadow: isSelecionado ? "0 0 14px rgba(130, 10, 209, 0.45)" : undefined,
+                                outline: isSelecionado ? `2px solid ${g.cor}` : "2px solid transparent",
+                                boxShadow: isSelecionado ? `0 0 14px ${g.cor}77` : undefined,
                                 transform: isSelecionado ? "scale(1.02)" : "scale(1)",
                                 transition: "all 0.2s ease",
                             }}
@@ -218,18 +243,18 @@ export default function Cartoes() {
                     $ativo={cartaoSelecionado === "todos"}
                     onClick={() => setCartaoSelecionado("todos")}
                 >
-                    💳 Todos os Cartões ({contagens.todos})
+                    💳 Todos ({contagens.todos})
                 </BotaoFiltroCartao>
-                {cartoesInfo.map((c) => (
+                {listaCartoes.map((c) => (
                     <BotaoFiltroCartao
                         key={c.id}
                         $cor={c.cor}
-                        $ativo={cartaoSelecionado === c.id}
+                        $ativo={cartaoSelecionado === c.id || cartaoSelecionado === c.cartao}
                         onClick={() => setCartaoSelecionado(c.id)}
                     >
                         <span>{c.icone}</span>
-                        <span>{c.nome}</span>
-                        <BadgeContagem $ativo={cartaoSelecionado === c.id}>
+                        <span>{c.cartao}</span>
+                        <BadgeContagem $ativo={cartaoSelecionado === c.id || cartaoSelecionado === c.cartao}>
                             {contagens[c.id] || 0}
                         </BadgeContagem>
                     </BotaoFiltroCartao>
@@ -251,15 +276,15 @@ export default function Cartoes() {
                     $ativo={responsavelSelecionado === "meu"}
                     onClick={() => setResponsavelSelecionado("meu")}
                 >
-                    👤 Meu ({auditoriaResponsavel.meu.count})
+                    👤 {isIngrid ? "Pessoal" : "Meu"} ({auditoriaResponsavel.meu.count})
                 </BotaoFiltroResponsavel>
                 <BotaoFiltroResponsavel
                     $tipo="mozi"
                     $ativo={responsavelSelecionado === "mozi"}
                     onClick={() => setResponsavelSelecionado("mozi")}
-                    title="Gastos 100% da Mozi a serem reembolsados"
+                    title={isIngrid ? "Gastos 100% sob minha responsabilidade" : "Gastos 100% da Mozi a serem reembolsados"}
                 >
-                    💕 Mozi ({auditoriaResponsavel.mozi.count}
+                    💕 {isIngrid ? "100% Meu (Reembolso)" : "Mozi"} ({auditoriaResponsavel.mozi.count}
                     {auditoriaResponsavel.mozi.total > 0 &&
                         ` • R$ ${auditoriaResponsavel.mozi.total.toFixed(2)}`}
                     )
@@ -292,7 +317,7 @@ export default function Cartoes() {
                                 Responsável:{" "}
                                 <strong>
                                     {responsavelSelecionado === "mozi"
-                                        ? "💕 Mozi (Reembolsável)"
+                                        ? "💕 100% Mozi (Reembolsável)"
                                         : responsavelSelecionado === "dividido"
                                         ? "🤝 Dividido (50% cada)"
                                         : "👤 Meu"}
@@ -301,11 +326,6 @@ export default function Cartoes() {
                         )}
                         {" "}• <strong>{gastosFiltrados.length}</strong> compras • Subtotal:{" "}
                         <strong>R$ {totalFiltrado.toFixed(2)}</strong>
-                        {responsavelSelecionado === "mozi" && totalFiltrado > 0 && (
-                            <span style={{ color: "#f472b6", marginLeft: "6px", fontWeight: "bold" }}>
-                                (Total a reembolsar)
-                            </span>
-                        )}
                     </span>
                     <BotaoLimparFiltro
                         onClick={() => {
@@ -320,41 +340,61 @@ export default function Cartoes() {
 
             <ListaGastos>
                 {gastosFiltrados.length > 0 ? (
-                    gastosFiltrados.map((gasto) => (
-                        <ItemGasto key={gasto.id}>
-                            <Coluna>{gasto.data}</Coluna>
-                            <Coluna>
-                                R$ {parseCurrency(gasto.valor).toFixed(2)}
-                            </Coluna>
-                            <Coluna>{gasto.cartao}</Coluna>
-                            <Coluna tipo={gasto.tipo}>{gasto.tipo}</Coluna>
-                            <Coluna>
-                                {gasto.categoria}
-                                {gasto.parcela ? ` (${gasto.parcela})` : ""}
-                                {gasto.responsavel === "mozi" && (
-                                    <BadgeResponsavel $tipo="mozi">💕 Mozi</BadgeResponsavel>
+                    gastosFiltrados.map((gasto) => {
+                        const valorExibicao =
+                            gasto.valorCalculado !== undefined
+                                ? gasto.valorCalculado
+                                : parseCurrency(gasto.valor);
+
+                        const ehGastoIntegrado =
+                            gasto.cartao === "Cartões do Renato" ||
+                            gasto.cartao === "Itaú" ||
+                            gasto.id?.startsWith?.("itau-");
+
+                        return (
+                            <ItemGasto key={gasto.id}>
+                                <Coluna>{gasto.data}</Coluna>
+                                <Coluna>
+                                    R$ {valorExibicao.toFixed(2)}
+                                </Coluna>
+                                <Coluna>{gasto.cartao}</Coluna>
+                                <Coluna tipo={gasto.tipo}>{gasto.tipo}</Coluna>
+                                <Coluna>
+                                    {gasto.descricaoExibicao || gasto.categoria}
+                                    {gasto.parcela ? ` (${gasto.parcela})` : ""}
+                                    {gasto.responsavel === "mozi" && (
+                                        <BadgeResponsavel $tipo="mozi">
+                                            {isIngrid ? "💕 100% a Pagar" : "💕 Mozi"}
+                                        </BadgeResponsavel>
+                                    )}
+                                    {gasto.responsavel === "dividido" && (
+                                        <BadgeResponsavel $tipo="dividido">
+                                            🤝 50% Dividido
+                                        </BadgeResponsavel>
+                                    )}
+                                </Coluna>
+                                {!ehGastoIntegrado ? (
+                                    <BotaoEditar onClick={() => setGastoParaEditar(gasto)}>
+                                        Editar
+                                    </BotaoEditar>
+                                ) : gasto.cartao === "Itaú" ? (
+                                    <BotaoEditar onClick={() => setModalItauAberto(true)}>
+                                        Ajustar
+                                    </BotaoEditar>
+                                ) : (
+                                    <BadgeIntegradoItem>
+                                        Integrado
+                                    </BadgeIntegradoItem>
                                 )}
-                                {gasto.responsavel === "dividido" && (
-                                    <BadgeResponsavel $tipo="dividido">🤝 50% Mozi</BadgeResponsavel>
-                                )}
-                            </Coluna>
-                            <BotaoEditar onClick={() => setGastoParaEditar(gasto)}>
-                                Editar
-                            </BotaoEditar>
-                        </ItemGasto>
-                    ))
+                            </ItemGasto>
+                        );
+                    })
                 ) : (
                     <MensagemVazia>
                         Nenhum gasto encontrado
                         {cartaoSelecionado !== "todos" ? ` no cartão ${cartaoSelecionado}` : ""}
                         {responsavelSelecionado !== "todos"
-                            ? ` para o responsável "${
-                                  responsavelSelecionado === "mozi"
-                                      ? "Mozi"
-                                      : responsavelSelecionado === "dividido"
-                                      ? "Dividido"
-                                      : "Meu"
-                              }"`
+                            ? ` para o responsável "${responsavelSelecionado}"`
                             : ""} neste período.
                     </MensagemVazia>
                 )}
@@ -366,6 +406,18 @@ export default function Cartoes() {
                     onClose={() => setGastoParaEditar(null)}
                     onUpdate={atualizarGasto}
                     onDelete={removerGasto}
+                />
+            )}
+
+            {modalCartoesAberto && (
+                <ModalGerenciarCartoes
+                    onClose={() => setModalCartoesAberto(false)}
+                />
+            )}
+
+            {modalItauAberto && (
+                <ModalFaturaItau
+                    onClose={() => setModalItauAberto(false)}
                 />
             )}
         </ContainerLista>
@@ -382,6 +434,50 @@ const ContainerLista = styled.div`
     padding: 8px;
     border-radius: 16px;
     background-color: ${({ theme }) => theme.colors.cardsBg};
+`;
+
+const BarraAcoesTop = styled.div`
+    display: flex;
+    gap: 10px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+`;
+
+const BotaoGerenciarCartoes = styled.button`
+    background: rgba(130, 10, 209, 0.15);
+    border: 1px solid rgba(130, 10, 209, 0.4);
+    color: #c084fc;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba(130, 10, 209, 0.3);
+        color: #fff;
+        transform: translateY(-1px);
+    }
+`;
+
+const BotaoItauAcao = styled.button`
+    background: rgba(234, 88, 12, 0.15);
+    border: 1px solid rgba(234, 88, 12, 0.4);
+    color: #fdba74;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba(234, 88, 12, 0.3);
+        color: #fff;
+        transform: translateY(-1px);
+    }
 `;
 
 const ListaGastos = styled.div`
@@ -447,6 +543,15 @@ const BotaoEditar = styled.button`
     &:hover {
         background-color: ${({ theme }) => theme.colors.hoverBg || "#1a2636"};
     }
+`;
+
+const BadgeIntegradoItem = styled.span`
+    font-size: 0.72rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 3px 6px;
+    border-radius: 6px;
 `;
 
 const Filtro = styled.div`
@@ -743,4 +848,3 @@ const BotaoFiltroResponsavel = styled.button`
         transform: scale(0.98);
     }
 `;
-

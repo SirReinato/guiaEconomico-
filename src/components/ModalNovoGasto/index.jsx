@@ -3,14 +3,26 @@ import styled from "styled-components";
 import { Titulos } from "../Card";
 import { parseCurrency } from "../../utils/currencyUtils";
 import { CATEGORIAS_PADRAO } from "../../utils/categoriasGasto";
+import { useGastos } from "../../context/GastosContext";
+import { useAuth } from "../../context/AuthContext";
 
 export default function ModalNovoGasto({ onClose, onSubmit }) {
+    const { cartoesAtivos } = useGastos() || {};
+    const { isIngrid } = useAuth() || {};
+
+    const cartoesDisponiveis = (cartoesAtivos || []).filter(
+        (c) => !c.nome?.includes("Cartões do Renato") && !c.id?.includes("Cartões do Renato")
+    );
+
+    const cartaoInicial = cartoesDisponiveis.length > 0 ? cartoesDisponiveis[0].nome || cartoesDisponiveis[0].id : "Nubank";
+
     const { register, handleSubmit, reset, watch } = useForm({
         defaultValues: {
             parcelas: "1",
             responsavel: "meu",
             categoria: "Supermercado",
             categoriaPersonalizada: "",
+            cartao: cartaoInicial,
         },
     });
 
@@ -63,11 +75,13 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
                     <label>Responsável pelo Gasto</label>
                     <select {...register("responsavel")}>
                         <option value="meu">Meu (Próprio)</option>
-                        <option value="mozi">Mozi (100% Reembolsável)</option>
+                        {!isIngrid && (
+                            <option value="mozi">Mozi (100% Reembolsável)</option>
+                        )}
                         <option value="dividido">Dividido (50% cada)</option>
                     </select>
 
-                    {responsavelWatch === "mozi" && valorNumerico > 0 && (
+                    {!isIngrid && responsavelWatch === "mozi" && valorNumerico > 0 && (
                         <InfoMozi>
                             💕 R$ {valorNumerico.toFixed(2).replace(".", ",")}{" "}
                             será adicionado em Ganhos+ (Mozi)
@@ -80,7 +94,7 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
                             {(valorNumerico / 2)
                                 .toFixed(2)
                                 .replace(".", ",")}{" "}
-                            para cada (50% em Ganhos+ da Mozi)
+                            para cada (50% dividido)
                         </InfoMozi>
                     )}
 
@@ -144,9 +158,11 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
 
                     <label>Cartão</label>
                     <select {...register("cartao", { required: true })}>
-                        <option value="Nubank">Nubank</option>
-                        <option value="Picpay">Picpay</option>
-                        <option value="Banco do Brasil">Banco do Brasil</option>
+                        {cartoesDisponiveis.map((c) => (
+                            <option key={c.id} value={c.nome || c.id}>
+                                {c.icone || "💳"} {c.nome || c.id}
+                            </option>
+                        ))}
                     </select>
 
                     <Footer>
@@ -314,5 +330,3 @@ const CampoPersonalizado = styled.div`
         }
     }
 `;
-
-

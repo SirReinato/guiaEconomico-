@@ -1,21 +1,28 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "../config/firebase";
-import { isProprietarioInsights } from "../utils/permissoes";
+import { isEmailAutorizado } from "../utils/permissoes";
 
-const STORAGE_KEY = "guia_reserva_config";
-const DOC_PATH = ["configuracoes", "reserva"];
+function getDocPathReserva(perfil = "renato") {
+    return perfil === "ingrid"
+        ? ["configuracoes", "reserva_ingrid"]
+        : ["configuracoes", "reserva"];
+}
+
+function getStorageKeyReserva(perfil = "renato") {
+    return perfil === "ingrid" ? "guia_reserva_config_ingrid" : "guia_reserva_config";
+}
 
 /**
- * Retorna as configurações e ajustes manuais da Reserva de Emergência.
+ * Retorna as configurações e ajustes manuais da Reserva de Emergência por perfil.
  */
-export async function getReservaConfig() {
-    // Se o usuário logado não for o proprietário, bloqueia o acesso
-    if (auth?.currentUser && !isProprietarioInsights(auth.currentUser.email)) {
+export async function getReservaConfig(perfil = "renato") {
+    if (auth?.currentUser && !isEmailAutorizado(auth.currentUser.email)) {
         return {};
     }
+    const storageKey = getStorageKeyReserva(perfil);
     let localConfig = null;
     try {
-        const salvo = localStorage.getItem(STORAGE_KEY);
+        const salvo = localStorage.getItem(storageKey);
         if (salvo) {
             localConfig = JSON.parse(salvo);
         }
@@ -27,18 +34,19 @@ export async function getReservaConfig() {
         return localConfig || {};
     }
 
+    const docPath = getDocPathReserva(perfil);
     try {
-        const docRef = doc(db, DOC_PATH[0], DOC_PATH[1]);
+        const docRef = doc(db, docPath[0], docPath[1]);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
             const data = docSnap.data();
             const configMesclada = { ...localConfig, ...data };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(configMesclada));
+            localStorage.setItem(storageKey, JSON.stringify(configMesclada));
             return configMesclada;
         }
     } catch (error) {
-        console.warn("Erro ao buscar configuração da reserva no Firestore:", error);
+        console.warn(`Erro ao buscar configuração da reserva (${docPath.join("/")}) no Firestore:`, error);
     }
 
     return localConfig || {};
@@ -46,26 +54,21 @@ export async function getReservaConfig() {
 
 /**
  * Salva os ajustes manuais da Reserva de Emergência no Firestore e no cache local.
- *
- * @param {Object} config
- * @param {number|null} config.saldoReal - Saldo real atual da Caixinha Nubank
- * @param {number|null} config.rendimentoManual - Rendimento real auferido no mês atual
- * @param {number|null} config.taxaManual - Taxa anual Selic informada manualmente (% a.a.)
- * @param {number|null} config.poupancaFixa - Valor fixo de aporte mensal futuro
  */
-export async function salvarReservaConfig(config) {
-    if (auth?.currentUser && !isProprietarioInsights(auth.currentUser.email)) {
-        console.warn("Acesso negado: apenas o proprietário autorizado pode salvar configurações da reserva.");
+export async function salvarReservaConfig(config, perfil = "renato") {
+    if (auth?.currentUser && !isEmailAutorizado(auth.currentUser.email)) {
+        console.warn("Acesso negado: usuário não autorizado.");
         return null;
     }
 
+    const storageKey = getStorageKeyReserva(perfil);
     const payload = {
         ...config,
         atualizadoEm: new Date().toISOString(),
     };
 
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        localStorage.setItem(storageKey, JSON.stringify(payload));
     } catch (e) {
         console.warn("Erro ao gravar configuração local da reserva:", e);
     }
@@ -74,25 +77,22 @@ export async function salvarReservaConfig(config) {
         return payload;
     }
 
+    const docPath = getDocPathReserva(perfil);
     try {
-        const docRef = doc(db, DOC_PATH[0], DOC_PATH[1]);
+        const docRef = doc(db, docPath[0], docPath[1]);
         await setDoc(docRef, payload, { merge: true });
         return payload;
     } catch (error) {
-        console.error("Erro ao salvar configuração da reserva no Firestore:", error);
+        console.error(`Erro ao salvar configuração da reserva (${docPath.join("/")}) no Firestore:`, error);
         return payload;
     }
 }
 
 /**
  * Registra o aporte (ou retirada) realizado no fechamento de um mês confirmado.
- * Se o saldo restante for positivo, é somado como aporte; se for negativo, é retirado da caixinha.
- *
- * @param {string} chaveMes - Identificador do mês (ex: "2026-09")
- * @param {number} valorSobra - Saldo restante no fechamento (receitas - gastos)
  */
-export async function salvarAporteMesConfirmado(chaveMes, valorSobra) {
-    const configAtual = await getReservaConfig();
+export async function salvarAporteMesConfirmado(chaveMes, valorSobra, perfil = "renato") {
+    const configAtual = await getReservaConfig(perfil);
     const aportesAtuais = configAtual.aportesConfirmados || {};
 
     const novosAportes = {
@@ -106,5 +106,5 @@ export async function salvarAporteMesConfirmado(chaveMes, valorSobra) {
     return await salvarReservaConfig({
         ...configAtual,
         aportesConfirmados: novosAportes,
-    });
+    }, perfil);
 }
