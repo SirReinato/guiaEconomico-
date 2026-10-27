@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import styled from "styled-components";
 import {
     Chart as ChartJS,
@@ -27,6 +28,18 @@ ChartJS.register(
 export default function GraficoComparativo() {
     const { percentuais, totais = [0, 0, 0], salario = 0 } =
         useResumoComparativo() || {};
+
+    const [isMobile, setIsMobile] = useState(
+        typeof window !== "undefined" ? window.innerWidth <= 768 : false
+    );
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     const atual = percentuais || [0, 0, 0];
     const ideal = [50, 30, 20];
@@ -69,9 +82,14 @@ export default function GraficoComparativo() {
     const options = {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+            mode: "nearest",
+            axis: "x",
+            intersect: false,
+        },
         layout: {
             padding: {
-                top: 34,
+                top: isMobile ? 8 : 30,
                 bottom: 4,
                 left: 4,
                 right: 4,
@@ -80,10 +98,10 @@ export default function GraficoComparativo() {
         scales: {
             y: {
                 beginAtZero: true,
-                grace: "30%",
+                grace: isMobile ? "10%" : "25%",
                 ticks: {
                     color: "#64748b",
-                    font: { size: 11 },
+                    font: { size: 10 },
                     callback: (value) => `${value}%`,
                 },
                 grid: {
@@ -100,31 +118,20 @@ export default function GraficoComparativo() {
                 },
                 ticks: {
                     color: "#e2e8f0",
-                    font: { size: 12, weight: "bold" },
+                    font: { size: isMobile ? 11 : 12, weight: "bold" },
                 },
             },
         },
         plugins: {
             legend: {
-                position: "bottom",
-                labels: {
-                    color: "#cbd5e1",
-                    usePointStyle: true,
-                    pointStyle: "circle",
-                    boxWidth: 8,
-                    boxHeight: 8,
-                    padding: 14,
-                    font: {
-                        size: 12,
-                        weight: "500",
-                    },
-                },
+                display: false, // Desativada aqui para usar a Legenda Minimalista no topo
             },
             tooltip: {
+                enabled: true,
                 backgroundColor: "#0f172a",
                 titleColor: "#f8fafc",
                 bodyColor: "#cbd5e1",
-                borderColor: "rgba(255, 255, 255, 0.12)",
+                borderColor: "rgba(0, 179, 255, 0.3)",
                 borderWidth: 1,
                 padding: 10,
                 boxPadding: 4,
@@ -147,13 +154,15 @@ export default function GraficoComparativo() {
                 },
             },
             datalabels: {
+                // No mobile removemos rótulos densos para despoluir; no desktop mantemos
+                display: !isMobile,
                 color: "#f8fafc",
                 anchor: "end",
                 align: "top",
-                offset: 3,
+                offset: 2,
                 font: {
                     weight: "bold",
-                    size: 11,
+                    size: 10,
                 },
                 textAlign: "center",
                 formatter: (value, context) => {
@@ -177,7 +186,19 @@ export default function GraficoComparativo() {
 
     return (
         <ContainerGrafico>
-            <Bar data={data} options={options} />
+            <TopLegendaContainer>
+                <ItemLegenda>
+                    <CorDot $cor="rgba(59, 130, 246, 0.85)" />
+                    <span>Ideal</span>
+                </ItemLegenda>
+                <ItemLegenda>
+                    <CorDot $cor="#10b981" />
+                    <span>Atual</span>
+                </ItemLegenda>
+            </TopLegendaContainer>
+            <BarWrapper>
+                <Bar data={data} options={options} />
+            </BarWrapper>
         </ContainerGrafico>
     );
 }
@@ -188,8 +209,45 @@ const ContainerGrafico = styled.div`
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     position: relative;
     min-height: 160px;
-    margin-top: 6px;
+    margin-top: 4px;
+`;
+
+const TopLegendaContainer = styled.div`
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+    padding: 2px 4px 6px 4px;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+        gap: 10px;
+        padding-bottom: 4px;
+    }
+`;
+
+const ItemLegenda = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #94a3b8;
+`;
+
+const CorDot = styled.span`
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: ${({ $cor }) => $cor || "#3b82f6"};
+    display: inline-block;
+`;
+
+const BarWrapper = styled.div`
+    width: 100%;
+    flex: 1;
+    position: relative;
+    min-height: 140px;
 `;

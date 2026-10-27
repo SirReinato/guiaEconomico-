@@ -218,4 +218,8 @@ const BrandTagline = styled.div`
     color: ${({ theme }) => theme.colors.textSecondary || "#777777"};
     font-weight: 600;
     margin-top: 2px;
+
+    @media (max-width: 768px) {
+        display: none;
+    }
 `;

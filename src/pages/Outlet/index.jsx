@@ -38,7 +38,7 @@ export default function ContainerGeral() {
                 {/* Header Mobile Superior */}
                 <MobileTopBar>
                     <Link to="/" onClick={fecharMenusMobile} style={{ textDecoration: "none" }}>
-                        <Logo size={36} showText={true} />
+                        <Logo size={28} showText={true} direction="row" />
                     </Link>
 
                     <MobileUserArea>
@@ -300,7 +300,8 @@ const MobileTopBar = styled.header`
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 16px;
+        padding: 6px 14px;
+        min-height: 48px;
         background-color: ${({ theme }) => theme.colors.cardsBg || "#0d121f"};
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         z-index: 100;

@@ -43,9 +43,11 @@ export default function Card({
                 >
                     {titulo}
                 </Titulos>
-                <Destaque $bgAlert={$bgAlert} $isNegative={ehNegativo}>
-                    {destaque}
-                </Destaque>
+                {destaque && (
+                    <Destaque $bgAlert={$bgAlert} $isNegative={ehNegativo}>
+                        {destaque}
+                    </Destaque>
+                )}
             </HeaderCard>
             {(textTitulo || textDescricao) && (
                 <CardCorpoDescricao>
@@ -78,15 +80,15 @@ const Container = styled.div`
         props.$bgClaro
             ? props.theme.colors.background
             : props.theme.colors.cardsBg};
-    border-radius: 16px;
+    border-radius: 18px;
 
     padding: ${(props) =>
         props.$heightSm
-            ? "8px 16px"
-            : props.$padding || "18px 24px"};
+            ? "14px 18px"
+            : props.$padding || "22px 24px"};
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     color: ${({ theme }) => theme.colors.textPrimary};
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -97,11 +99,11 @@ const Container = styled.div`
     border: ${(props) =>
         props.$isNegative
             ? "1px solid rgba(239, 68, 68, 0.45)"
-            : "none"};
+            : "1px solid rgba(255, 255, 255, 0.05)"};
     box-shadow: ${(props) =>
         props.$isNegative
             ? "0 4px 14px rgba(239, 68, 68, 0.15)"
-            : "0 4px 6px rgba(0, 0, 0, 0.1)"};
+            : "0 4px 12px rgba(0, 0, 0, 0.18)"};
     text-align: left;
 
     &:hover {
@@ -110,8 +112,10 @@ const Container = styled.div`
 
     @media (max-width: 768px) {
         width: 100%;
-        height: ${(props) => (props.$heightSm ? "auto" : "280px")};
-        min-height: ${(props) => (props.$heightSm ? "auto" : "260px")};
+        height: auto;
+        min-height: ${(props) => (props.$heightSm ? "auto" : "240px")};
+        padding: ${(props) => (props.$heightSm ? "16px 20px" : "20px 20px")};
+        border-radius: 18px;
     }
 `;
 
@@ -120,11 +124,12 @@ const HeaderCard = styled.div`
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
+    gap: 12px;
 `;
 
 export const Titulos = styled.h2`
-    font-size: ${(props) => (props.$titulo ? "2.5em" : "1.8em")};
-    letter-spacing: 0.08em;
+    font-size: ${(props) => (props.$titulo ? "2.2em" : "1.6em")};
+    letter-spacing: 0.06em;
     font-weight: bold;
     white-space: nowrap;
     ${(props) =>
@@ -143,28 +148,57 @@ export const Titulos = styled.h2`
             : `
       color: #00b3ff;
     `}
+
+    @media (max-width: 768px) {
+        font-size: ${(props) => (props.$titulo ? "1.8em" : "1.35em")};
+    }
 `;
 
 const Destaque = styled.h2`
-    padding: 12px 16px;
-    border-radius: 12px;
-    font-size: 1.5em;
+    padding: 7px 13px;
+    border-radius: 10px;
+    font-size: 1.35em;
     font-family: "Bebas Neue", sans-serif;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.12em;
     white-space: nowrap;
     flex-shrink: 0;
+    /* Suavização das pílulas de valor: fundo com alta transparência (15%) e cor neon no texto */
     background: ${({ $isNegative, $bgAlert }) =>
         $isNegative
-            ? "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)"
+            ? "rgba(239, 68, 68, 0.15)"
             : $bgAlert
-            ? "linear-gradient(to right, #820ad1, #00b3ff)"
+            ? "rgba(130, 10, 209, 0.15)"
             : "transparent"};
-    color: ${({ theme, $isNegative }) =>
-        $isNegative ? "#ffffff" : theme.colors.valor};
+    color: ${({ $isNegative }) =>
+        $isNegative ? "#ef4444" : "#00d2ff"};
+    border: ${({ $isNegative, $bgAlert }) =>
+        $isNegative
+            ? "1px solid rgba(239, 68, 68, 0.35)"
+            : $bgAlert
+            ? "1px solid rgba(0, 179, 255, 0.25)"
+            : "none"};
     box-shadow: ${({ $isNegative }) =>
-        $isNegative ? "0 0 16px rgba(239, 68, 68, 0.45)" : "none"};
-    border: ${({ $isNegative }) =>
-        $isNegative ? "1px solid rgba(254, 202, 202, 0.35)" : "none"};
+        $isNegative ? "0 0 10px rgba(239, 68, 68, 0.15)" : "none"};
+
+    @media (min-width: 769px) {
+        padding: 9px 15px;
+        border-radius: 12px;
+        font-size: 1.45em;
+        background: ${({ $isNegative, $bgAlert }) =>
+            $isNegative
+                ? "rgba(239, 68, 68, 0.2)"
+                : $bgAlert
+                ? "rgba(130, 10, 209, 0.2)"
+                : "transparent"};
+        color: ${({ $isNegative }) =>
+            $isNegative ? "#ffffff" : "#00d2ff"};
+        border: ${({ $isNegative, $bgAlert }) =>
+            $isNegative
+                ? "1px solid rgba(239, 68, 68, 0.4)"
+                : $bgAlert
+                ? "1px solid rgba(0, 179, 255, 0.3)"
+                : "none"};
+    }
 `;
 
 const CardCorpoDescricao = styled.div`
@@ -173,19 +207,19 @@ const CardCorpoDescricao = styled.div`
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 14px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     padding-right: 6px;
 
-    /* Barra de rolagem estilizada e discreta: visível somente se houver overflow */
+    /* Barra de rolagem estilizada e discreta */
     scrollbar-width: thin;
     scrollbar-color: rgba(130, 10, 209, 0.5) transparent;
 
     &::-webkit-scrollbar {
-        width: 6px;
+        width: 5px;
     }
 
     &::-webkit-scrollbar-track {
@@ -216,7 +250,7 @@ const CardCorpoConteudo = styled.div`
     scrollbar-color: rgba(130, 10, 209, 0.5) transparent;
 
     &::-webkit-scrollbar {
-        width: 6px;
+        width: 5px;
     }
 
     &::-webkit-scrollbar-track {
@@ -238,18 +272,34 @@ const LinhaDescricao = styled.div`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 2px 0;
+    padding: 6px 0;
     flex-shrink: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+    &:last-child {
+        border-bottom: none;
+    }
 `;
 
 const TextTitulo = styled.h3`
-    font-size: 1.2em;
-    letter-spacing: 0.1em;
-    font-weight: bold;
+    font-size: 1.05em;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+    text-align: left;
+    color: #e2e8f0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 12px;
 `;
 
 const TextDescricao = styled.p`
-    font-size: 1.1em;
-    letter-spacing: 0.1em;
-    color: ${({ theme }) => theme.colors.border};
+    font-size: 1.05em;
+    letter-spacing: 0.05em;
+    color: #00b3ff;
+    text-align: right;
+    font-weight: 600;
+    white-space: nowrap;
+    font-family: 'Roboto', sans-serif;
 `;

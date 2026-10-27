@@ -13,6 +13,7 @@ import { useShowModals } from "../../hooks/useShowModals";
 import { useResumoEvitaveis } from "../../hooks/useResumoEvitaveis";
 import ListaProximosMeses from "../../components/ListaProximosMeses";
 import ListaGanhosMozi from "../../components/ListaGanhosMozi";
+import CardGastosAbas from "../../components/CardGastosAbas";
 import { useProjecaoSaldo } from "../../hooks/useProjecaoSaldo";
 import { useEssencial } from "../../context/EssencialContext";
 import { useMes } from "../../context/MesContext";
@@ -91,6 +92,7 @@ export default function Home() {
 
     return (
         <ContainerGeralHome>
+            {/* Seletor de Data: No mobile sem caixa de fundo, texto centralizado com setas simples */}
             <BarraMesNavegacaoHome>
                 <BotaoMesNav onClick={voltarMes} title="Mês anterior">
                     ◀
@@ -149,23 +151,41 @@ export default function Home() {
                 >
                     <GraficoComparativo />
                 </Card>
-                <Card
-                    $bgAlert
-                    titulo="Essenciais"
-                    destaque={totalEssenciaisFormatados}
-                    textTitulo={nomes}
-                    textDescricao={valores}
-                    onClick={() => setShowModalEssencial(true)}
-                />
 
-                <Card
-                    $bgAlert
-                    titulo="Evitáveis"
-                    destaque={destaqueEvitaveis}
-                    textTitulo={nomesEvitaveis}
-                    textDescricao={valoresEvitaveis}
-                ></Card>
+                {/* No Desktop: cartões separados */}
+                <DesktopCardsGroup>
+                    <Card
+                        $bgAlert
+                        titulo="Essenciais"
+                        destaque={totalEssenciaisFormatados}
+                        textTitulo={nomes}
+                        textDescricao={valores}
+                        onClick={() => setShowModalEssencial(true)}
+                    />
+
+                    <Card
+                        $bgAlert
+                        titulo="Evitáveis"
+                        destaque={destaqueEvitaveis}
+                        textTitulo={nomesEvitaveis}
+                        textDescricao={valoresEvitaveis}
+                    />
+                </DesktopCardsGroup>
+
+                {/* No Mobile: Cartão unificado em Abas ("Essenciais" | "Evitáveis") */}
+                <MobileCardAbasWrapper>
+                    <CardGastosAbas
+                        totalEssenciaisFormatados={totalEssenciaisFormatados}
+                        destaqueEvitaveis={destaqueEvitaveis}
+                        nomesEssenciais={nomes}
+                        valoresEssenciais={valores}
+                        nomesEvitaveis={nomesEvitaveis}
+                        valoresEvitaveis={valoresEvitaveis}
+                        onAbrirModalEssencial={() => setShowModalEssencial(true)}
+                    />
+                </MobileCardAbasWrapper>
             </ContainerMainCards>
+
             {showModalGasto && (
                 <ModalNovoGasto
                     onClose={() => setShowModalGasto(false)}
@@ -199,7 +219,8 @@ const ContainerGeralHome = styled.div`
     @media (max-width: 768px) {
         height: auto;
         min-height: 100%;
-        padding-bottom: 32px;
+        padding-bottom: 24px;
+        gap: 12px;
     }
 `;
 
@@ -229,7 +250,24 @@ const ContainerMainCards = styled.div`
     @media (max-width: 768px) {
         height: auto;
         flex-direction: column;
-        gap: 16px;
+        gap: 14px;
+    }
+`;
+
+const DesktopCardsGroup = styled.div`
+    display: contents;
+
+    @media (max-width: 768px) {
+        display: none;
+    }
+`;
+
+const MobileCardAbasWrapper = styled.div`
+    display: none;
+
+    @media (max-width: 768px) {
+        display: block;
+        width: 100%;
     }
 `;
 
@@ -243,6 +281,14 @@ const BarraMesNavegacaoHome = styled.div`
     border-radius: 12px;
     padding: 6px 18px;
     margin-bottom: 4px;
+
+    @media (max-width: 768px) {
+        background: transparent;
+        border: none;
+        padding: 2px 0;
+        margin-bottom: 6px;
+        gap: 10px;
+    }
 `;
 
 const BotaoMesNav = styled.button`
@@ -259,6 +305,17 @@ const BotaoMesNav = styled.button`
         background: #1e293b;
         color: #00b3ff;
     }
+
+    @media (max-width: 768px) {
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        color: #00b3ff;
+
+        &:hover {
+            background: transparent;
+            color: #ffffff;
+        }
+    }
 `;
 
 const MesLabelHome = styled.span`
@@ -269,4 +326,9 @@ const MesLabelHome = styled.span`
     min-width: 140px;
     text-align: center;
     letter-spacing: 0.5px;
+
+    @media (max-width: 768px) {
+        font-size: 0.98rem;
+        min-width: auto;
+    }
 `;

@@ -93,26 +93,36 @@ const LoadingText = styled.p`
 
 const UpdateBanner = styled.button`
     position: fixed;
-    bottom: 80px;
-    right: 20px;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
     z-index: 9999;
-    background: linear-gradient(135deg, #0d6efd, #00b3ff);
+    background: linear-gradient(90deg, #0d6efd, #00b3ff);
     color: #ffffff;
     border: none;
-    padding: 12px 20px;
-    border-radius: 30px;
+    padding: 8px 16px;
     font-weight: 600;
-    font-size: 0.9rem;
-    box-shadow: 0 4px 15px rgba(0, 179, 255, 0.4);
+    font-size: 0.82rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 2px 10px rgba(0, 179, 255, 0.35);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 0.2s, opacity 0.2s;
+
+    @media (max-width: 768px) {
+        top: 52px;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+    }
 
     &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 179, 255, 0.6);
+        background: linear-gradient(90deg, #0b5ed7, #0099db);
     }
 
     &:active {
-        transform: translateY(0);
+        opacity: 0.9;
     }
 `;
