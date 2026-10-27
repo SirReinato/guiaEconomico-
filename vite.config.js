@@ -36,7 +36,7 @@ export default defineConfig({
         navigateFallback: '/offline.html',
         navigateFallbackDenylist: [/^\/insights/]
       },
-      devOptions: { enabled: true }
+      devOptions: { enabled: false }
     })
   ]
 });
