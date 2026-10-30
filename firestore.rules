@@ -1,0 +1,376 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: gastos (Perfil Renato) & gastos_ingrid (Perfil Ingrid)
+// Document ID: Auto-generated Firestore ID
+// Fields:
+//   - data: string (required, format 'YYYY-MM-DD') - Data da compra do cartão
+//   - valor: number (required, positive, < 100M) - Valor em BRL
+//   - cartao: string (required, 1-80 chars) - Nome do cartão de crédito
+//   - categoria: string (required, 1-80 chars) - Nome da categoria do gasto
+//   - tipo: string (required, 1-50 chars) - Classificação orçamentária (Essencial, Desejo, etc.)
+//   - responsavel: string (required, ['meu', 'mozi', 'dividido']) - Responsável pelo pagamento
+//   - descricao: string (optional, 0-300 chars) - Estabelecimento / descrição do gasto
+//   - origem: string (optional, 0-80 chars) - Origem da entrada (ex: 'webhook_notificacao')
+//   - origemCaptura: string (optional, 0-80 chars) - Metadados de captura via webhook
+//   - parcela: string (optional, 0-30 chars) - Rótulo da parcela (ex: '1/3')
+//   - parcelas: string or int (optional) - Quantidade total de parcelas
+//   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
+//   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
+//   - id: string (optional, 0-60 chars) - ID de documento no cliente
+//
+// Collection: saldo (Perfil Renato) & saldo_ingrid (Perfil Ingrid)
+// Document ID: Auto-generated Firestore ID
+// Fields:
+//   - data: string (required, format 'YYYY-MM-DD') - Data do recebimento
+//   - valor: number (required, positive, < 100M) - Valor da receita em BRL
+//   - tipo: string (required, 1-80 chars) - Tipo de receita (Salario, Outro, etc.)
+//   - descricao: string (optional, 0-300 chars) - Descrição opcional da receita
+//   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
+//   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
+//   - id: string (optional, 0-60 chars) - ID de documento no cliente
+//
+// Collection: essenciais (Perfil Renato) & essenciais_ingrid (Perfil Ingrid)
+// Document ID: Auto-generated Firestore ID
+// Fields:
+//   - tipo: string (required, 1-80 chars) - Nome da despesa essencial (ex: 'Aluguel')
+//   - valor: number (required, non-negative, < 100M) - Valor base fixo mensal
+//   - data: string (optional, 0-30 chars) - Data de referência do valor
+//   - descricao: string (optional, 0-300 chars) - Detalhes adicionais
+//   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
+//   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
+//   - id: string (optional, 0-60 chars) - ID de documento no cliente
+//
+// Collection: metas (Perfil Renato) & metas_ingrid (Perfil Ingrid)
+// Document ID: Auto-generated Firestore ID
+// Fields:
+//   - nome: string (required, 1-120 chars) - Título da meta financeira
+//   - categoria: string (required, 1-60 chars) - Categoria (veiculo, imovel, etc.)
+//   - valorMin: number (required, non-negative, < 1B) - Valor mínimo estimado
+//   - valorMax: number (required, non-negative, < 1B) - Valor máximo estimado
+//   - valorJaGuardado: number (required, non-negative, < 1B) - Saldo já acumulado
+//   - aceitaFinanciamento: bool (required) - Permite simular financiamento
+//   - aceitaConsorcio: bool (required) - Permite simular consórcio
+//   - status: string (required, ['ativa', 'concluida', 'pausada']) - Estado da meta
+//   - prazoDesejadoMeses: number or null (optional, 1-600) - Prazo desejado
+//   - cenarioAdotadoId: string (optional, 0-80 chars) - ID do cenário escolhido
+//   - premissas: map (optional, max 20 keys) - Taxas e parâmetros financeiros
+//   - planoIA: map (optional, max 30 keys) - Parecer da IA / cronograma detalhado
+//   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
+//   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
+//   - id: string (optional, 0-60 chars) - ID de documento no cliente
+//
+// Collection: configuracoes
+// Documents:
+//   - cartoes_renato, cartoes_ingrid:
+//       cartoes: list (required, max 50 items) - Configuração de cartões
+//       atualizadoEm: string (optional, 0-50 chars)
+//   - salarios_ajustados, salarios_ingrid:
+//       salarios: map (required, max 200 keys) - Mapa 'YYYY-MM' -> valor
+//       atualizadoEm: string (optional, 0-50 chars)
+//   - fatura_itau_ingrid:
+//       faturas: map (required, max 200 keys) - Mapa 'YYYY-MM' -> valor fatura Itaú
+//       atualizadoEm: string (optional, 0-50 chars)
+//   - reserva, reserva_ingrid:
+//       saldoReal: number or null (optional)
+//       rendimentoManual: number or null (optional)
+//       taxaManual: number or null (optional)
+//       poupancaFixa: number or null (optional)
+//       aportesConfirmados: map (optional, max 200 keys)
+//       atualizadoEm: string (optional, 0-50 chars)
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions: Identidade e Autenticação
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function userEmail() {
+      return isAuthenticated() ? request.auth.token.email.lower() : '';
+    }
+
+    // Perfil Renato: proprietário principal
+    function isRenato() {
+      return isAuthenticated() && (
+        userEmail() == 'renatofranca2881@gmail.com' ||
+        (request.auth.token.keys().hasAny(['perfil']) && request.auth.token.perfil == 'renato')
+      );
+    }
+
+    // Perfil Ingrid: parceira com perfil isolado e cartões integrados
+    function isIngrid() {
+      return isAuthenticated() && (
+        userEmail() == 'ingridfadvogada@gmail.com' ||
+        (request.auth.token.keys().hasAny(['perfil']) && request.auth.token.perfil == 'ingrid')
+      );
+    }
+
+    // Webhook Bot / Automação (MacroDroid via email/senha ou custom claim)
+    function isWebhookBot() {
+      return isAuthenticated() && (
+        (request.auth.token.keys().hasAny(['role']) && request.auth.token.role == 'webhook') ||
+        (request.auth.token.keys().hasAny(['webhook']) && request.auth.token.webhook == true) ||
+        (request.auth.token.keys().hasAny(['firebase']) && request.auth.token.firebase.sign_in_provider == 'password')
+      );
+    }
+
+    // ===============================================================
+    // Helper Functions: Validações Primitivas e DoS Defense
+    // ===============================================================
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, data, minLen, maxLen) {
+      return !(field in data) ||
+             (data[field] is string && data[field].size() >= minLen && data[field].size() <= maxLen);
+    }
+
+    function isValidDateString(val) {
+      return val is string && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidPositiveNumber(val) {
+      return val is number && val > 0 && val < 100000000;
+    }
+
+    function isValidNonNegativeNumber(val) {
+      return val is number && val >= 0 && val < 1000000000;
+    }
+
+    function isImmutableFieldUnchanged(field) {
+      return !(field in resource.data) ||
+             (field in request.resource.data && request.resource.data[field] == resource.data[field]);
+    }
+
+    // ===============================================================
+    // Domain Validators (MANDATÓRIO: create e update)
+    // ===============================================================
+
+    function isValidGasto(data) {
+      return data.keys().hasAll(['data', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel']) &&
+             data.keys().hasOnly(['data', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel',
+                                  'descricao', 'origem', 'origemCaptura', 'parcela', 'parcelas',
+                                  'criadoEm', 'atualizadoEm', 'id']) &&
+             isValidDateString(data.data) &&
+             isValidPositiveNumber(data.valor) &&
+             isValidString(data.cartao, 1, 80) &&
+             isValidString(data.categoria, 1, 80) &&
+             isValidString(data.tipo, 1, 50) &&
+             data.responsavel in ['meu', 'mozi', 'dividido'] &&
+             isValidOptionalString('descricao', data, 0, 300) &&
+             isValidOptionalString('origem', data, 0, 80) &&
+             isValidOptionalString('origemCaptura', data, 0, 80) &&
+             isValidOptionalString('parcela', data, 0, 30) &&
+             (!('parcelas' in data) ||
+              (data.parcelas is string && data.parcelas.size() <= 10) ||
+              (data.parcelas is int && data.parcelas >= 1 && data.parcelas <= 96)) &&
+             isValidOptionalString('criadoEm', data, 0, 50) &&
+             isValidOptionalString('atualizadoEm', data, 0, 50) &&
+             isValidOptionalString('id', data, 0, 60);
+    }
+
+    function isValidSaldo(data) {
+      return data.keys().hasAll(['data', 'valor', 'tipo']) &&
+             data.keys().hasOnly(['data', 'valor', 'tipo', 'descricao', 'criadoEm', 'atualizadoEm', 'id']) &&
+             isValidDateString(data.data) &&
+             isValidPositiveNumber(data.valor) &&
+             isValidString(data.tipo, 1, 80) &&
+             isValidOptionalString('descricao', data, 0, 300) &&
+             isValidOptionalString('criadoEm', data, 0, 50) &&
+             isValidOptionalString('atualizadoEm', data, 0, 50) &&
+             isValidOptionalString('id', data, 0, 60);
+    }
+
+    function isValidEssencial(data) {
+      return data.keys().hasAll(['tipo', 'valor']) &&
+             data.keys().hasOnly(['tipo', 'valor', 'data', 'descricao', 'criadoEm', 'atualizadoEm', 'id']) &&
+             isValidString(data.tipo, 1, 80) &&
+             isValidNonNegativeNumber(data.valor) &&
+             isValidOptionalString('data', data, 0, 30) &&
+             isValidOptionalString('descricao', data, 0, 300) &&
+             isValidOptionalString('criadoEm', data, 0, 50) &&
+             isValidOptionalString('atualizadoEm', data, 0, 50) &&
+             isValidOptionalString('id', data, 0, 60);
+    }
+
+    function isValidMeta(data) {
+      return data.keys().hasAll(['nome', 'categoria', 'valorMin', 'valorMax', 'valorJaGuardado',
+                                 'aceitaFinanciamento', 'aceitaConsorcio', 'status']) &&
+             data.keys().hasOnly(['nome', 'categoria', 'valorMin', 'valorMax', 'prazoDesejadoMeses',
+                                  'valorJaGuardado', 'aceitaFinanciamento', 'aceitaConsorcio',
+                                  'cenarioAdotadoId', 'status', 'premissas', 'planoIA',
+                                  'criadoEm', 'atualizadoEm', 'id']) &&
+             isValidString(data.nome, 1, 120) &&
+             isValidString(data.categoria, 1, 60) &&
+             isValidNonNegativeNumber(data.valorMin) &&
+             isValidNonNegativeNumber(data.valorMax) &&
+             isValidNonNegativeNumber(data.valorJaGuardado) &&
+             data.aceitaFinanciamento is bool &&
+             data.aceitaConsorcio is bool &&
+             data.status in ['ativa', 'concluida', 'pausada'] &&
+             (!('prazoDesejadoMeses' in data) ||
+              data.prazoDesejadoMeses == null ||
+              (data.prazoDesejadoMeses is int && data.prazoDesejadoMeses >= 1 && data.prazoDesejadoMeses <= 600)) &&
+             isValidOptionalString('cenarioAdotadoId', data, 0, 80) &&
+             (!('premissas' in data) || (data.premissas is map && data.premissas.keys().size() <= 20)) &&
+             (!('planoIA' in data) || (data.planoIA is map && data.planoIA.keys().size() <= 30)) &&
+             isValidOptionalString('criadoEm', data, 0, 50) &&
+             isValidOptionalString('atualizadoEm', data, 0, 50) &&
+             isValidOptionalString('id', data, 0, 60);
+    }
+
+    function isValidConfiguracao(docId, data) {
+      return (
+        // Cartões personalizados
+        (docId in ['cartoes_renato', 'cartoes_ingrid'] &&
+         data.keys().hasOnly(['cartoes', 'atualizadoEm']) &&
+         data.cartoes is list &&
+         data.cartoes.size() <= 50 &&
+         isValidOptionalString('atualizadoEm', data, 0, 50)) ||
+
+        // Salários ajustados mensais
+        (docId in ['salarios_ajustados', 'salarios_ingrid'] &&
+         data.keys().hasOnly(['salarios', 'atualizadoEm']) &&
+         data.salarios is map &&
+         data.salarios.keys().size() <= 200 &&
+         isValidOptionalString('atualizadoEm', data, 0, 50)) ||
+
+        // Fatura Itaú compartilhada
+        (docId == 'fatura_itau_ingrid' &&
+         data.keys().hasOnly(['faturas', 'atualizadoEm']) &&
+         data.faturas is map &&
+         data.faturas.keys().size() <= 200 &&
+         isValidOptionalString('atualizadoEm', data, 0, 50)) ||
+
+        // Configurações e aportes da Reserva de Emergência
+        (docId in ['reserva', 'reserva_ingrid'] &&
+         data.keys().hasOnly(['saldoReal', 'rendimentoManual', 'taxaManual', 'poupancaFixa', 'aportesConfirmados', 'atualizadoEm']) &&
+         (!('saldoReal' in data) || data.saldoReal == null || data.saldoReal is number) &&
+         (!('rendimentoManual' in data) || data.rendimentoManual == null || data.rendimentoManual is number) &&
+         (!('taxaManual' in data) || data.taxaManual == null || data.taxaManual is number) &&
+         (!('poupancaFixa' in data) || data.poupancaFixa == null || data.poupancaFixa is number) &&
+         (!('aportesConfirmados' in data) || (data.aportesConfirmados is map && data.aportesConfirmados.keys().size() <= 200)) &&
+         isValidOptionalString('atualizadoEm', data, 0, 50))
+      );
+    }
+
+    // ===============================================================
+    // Coleções de Gastos
+    // ===============================================================
+
+    // Gastos do Renato:
+    // - Leitura: Renato e Ingrid (Ingrid consome gastos com responsavel 'mozi' e 'dividido')
+    // - Criação: Renato ou Webhook Bot autenticado
+    // - Atualização e Exclusão: Exclusivo Renato
+    match /gastos/{gastoId} {
+      allow read: if isRenato() || isIngrid();
+      allow create: if (isRenato() || isWebhookBot()) && isValidGasto(request.resource.data);
+      allow update: if isRenato() && isValidGasto(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isRenato();
+    }
+
+    // Gastos da Ingrid (dados estritamente isolados da parceira)
+    match /gastos_ingrid/{gastoId} {
+      allow read: if isIngrid();
+      allow create: if isIngrid() && isValidGasto(request.resource.data);
+      allow update: if isIngrid() && isValidGasto(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isIngrid();
+    }
+
+    // ===============================================================
+    // Coleções de Saldo / Receitas
+    // ===============================================================
+
+    match /saldo/{receitaId} {
+      allow read: if isRenato();
+      allow create: if isRenato() && isValidSaldo(request.resource.data);
+      allow update: if isRenato() && isValidSaldo(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isRenato();
+    }
+
+    match /saldo_ingrid/{receitaId} {
+      allow read: if isIngrid();
+      allow create: if isIngrid() && isValidSaldo(request.resource.data);
+      allow update: if isIngrid() && isValidSaldo(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isIngrid();
+    }
+
+    // ===============================================================
+    // Coleções de Gastos Essenciais Fixos
+    // ===============================================================
+
+    match /essenciais/{essencialId} {
+      allow read: if isRenato();
+      allow create: if isRenato() && isValidEssencial(request.resource.data);
+      allow update: if isRenato() && isValidEssencial(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isRenato();
+    }
+
+    match /essenciais_ingrid/{essencialId} {
+      allow read: if isIngrid();
+      allow create: if isIngrid() && isValidEssencial(request.resource.data);
+      allow update: if isIngrid() && isValidEssencial(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isIngrid();
+    }
+
+    // ===============================================================
+    // Coleções de Metas Futuras & Planejador IA
+    // ===============================================================
+
+    match /metas/{metaId} {
+      allow read: if isRenato();
+      allow create: if isRenato() && isValidMeta(request.resource.data);
+      allow update: if isRenato() && isValidMeta(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isRenato();
+    }
+
+    match /metas_ingrid/{metaId} {
+      allow read: if isIngrid();
+      allow create: if isIngrid() && isValidMeta(request.resource.data);
+      allow update: if isIngrid() && isValidMeta(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isIngrid();
+    }
+
+    // ===============================================================
+    // Coleção de Configurações do Sistema
+    // ===============================================================
+
+    match /configuracoes/{documentId} {
+      // Documentos do perfil Renato
+      allow read: if (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
+                     (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
+                     (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()));
+
+      allow create, update: if isValidConfiguracao(documentId, request.resource.data) && (
+        (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
+        (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
+        (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()))
+      );
+
+      allow delete: if (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
+                       (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
+                       (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()));
+    }
+
+    // ===============================================================
+    // Default Deny Root (Bloqueio total para qualquer outro documento)
+    // ===============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
