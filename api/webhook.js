@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
@@ -19,11 +20,49 @@ function getDbInstance() {
     return { app, db, auth };
 }
 
+/**
+ * Comparação em tempo constante para evitar ataques de temporização (Timing Attacks).
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+function timingSafeCompare(a, b) {
+    if (typeof a !== "string" || typeof b !== "string") {
+        return false;
+    }
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+
+    if (bufA.length !== bufB.length) {
+        return false;
+    }
+
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Higieniza entradas do payload para prevenir injeção ou sobrecarga de memória.
+ *
+ * @param {unknown} val
+ * @param {number} maxLen
+ * @returns {string}
+ */
+function sanitizarEntrada(val, maxLen = 300) {
+    if (typeof val !== "string") {
+        return "";
+    }
+    return val.replace(/<[^>]*>/g, "").trim().slice(0, maxLen);
+}
+
 export default async function handler(req, res) {
-    // Permite CORS para requisições do celular ou testes
+    // Cabeçalhos de Segurança HTTP defensivos
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-webhook-token");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-webhook-token");
 
     if (req.method === "OPTIONS") {
         return res.status(200).end();
@@ -33,7 +72,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
         return res.status(200).json({
             status: "online",
-            mensagem: "Webhook do Guia Econômico operacional.",
+            mensagem: "Webhook do Guia Econômico operacional e protegido.",
             timestamp: new Date().toISOString(),
         });
     }
@@ -42,33 +81,61 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: "Método não permitido. Utilize POST." });
     }
 
-    // 1. Validação do Token de Segurança
+    // 1. Validação Obrigatória do Token de Segurança (Fail-Safe Defaults)
     const webhookSecret = process.env.WEBHOOK_SECRET || process.env.VITE_WEBHOOK_SECRET;
-    const tokenRecebido =
-        req.query.token ||
-        req.headers["x-webhook-token"] ||
-        req.body?.token ||
-        req.body?.secret;
-
-    if (webhookSecret && tokenRecebido !== webhookSecret) {
-        console.warn("Tentativa de acesso com token inválido.");
-        return res.status(401).json({ error: "Token de segurança inválido." });
+    if (!webhookSecret || typeof webhookSecret !== "string" || webhookSecret.trim().length === 0) {
+        console.error("Segurança: WEBHOOK_SECRET não configurado nas variáveis de ambiente do servidor.");
+        return res.status(500).json({
+            error: "Falha de configuração de segurança do webhook: segredo ausente no servidor.",
+        });
     }
 
-    // 2. Extração dos dados da notificação
+    // Extrai o token de cabeçalhos seguros preferencialmente, com fallbacks controlados
+    const authHeader = req.headers["authorization"];
+    let bearerToken = null;
+    if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+        bearerToken = authHeader.slice(7).trim();
+    }
+
+    const tokenRecebido =
+        bearerToken ||
+        req.headers["x-webhook-token"] ||
+        req.body?.token ||
+        req.body?.secret ||
+        req.query?.token;
+
+    if (!tokenRecebido || !timingSafeCompare(String(tokenRecebido), webhookSecret.trim())) {
+        console.warn("Segurança: Tentativa de acesso ao webhook com token ausente ou inválido.");
+        return res.status(401).json({ error: "Token de segurança inválido ou não fornecido." });
+    }
+
+    // 2. Extração e sanitização dos dados da notificação (Prevenção de payload bombs)
     const body = req.body || {};
     const payload = {
-        banco: body.banco || body.app || "",
-        texto: body.texto || body.text || body.message || "",
-        titulo: body.titulo || body.title || "",
+        banco: sanitizarEntrada(body.banco || body.app || "", 100),
+        texto: sanitizarEntrada(body.texto || body.text || body.message || "", 500),
+        titulo: sanitizarEntrada(body.titulo || body.title || "", 200),
     };
+
+    if (!payload.texto && !payload.titulo) {
+        return res.status(400).json({
+            error: "Payload incompleto: é necessário fornecer o texto ou título da notificação.",
+        });
+    }
 
     const gastoFormatado = parseNotification(payload);
 
-    if (!gastoFormatado) {
+    if (!gastoFormatado || typeof gastoFormatado.valor !== "number" || isNaN(gastoFormatado.valor)) {
         return res.status(400).json({
             error: "Não foi possível extrair uma compra válida a partir do texto recebido.",
             payloadRecebido: payload,
+        });
+    }
+
+    // Garante que o gasto não contenha valores absurdos ou campos corrompidos
+    if (gastoFormatado.valor <= 0 || gastoFormatado.valor > 1000000) {
+        return res.status(400).json({
+            error: "Valor do gasto fora dos limites de segurança aceitáveis.",
         });
     }
 
@@ -87,7 +154,11 @@ export default async function handler(req, res) {
             }
         }
 
-        const docRef = await addDoc(collection(db, "gastos"), gastoFormatado);
+        const docRef = await addDoc(collection(db, "gastos"), {
+            ...gastoFormatado,
+            origemCaptura: "webhook-macrodroid",
+            criadoEm: new Date().toISOString(),
+        });
 
         return res.status(200).json({
             success: true,
