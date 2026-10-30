@@ -7,9 +7,9 @@
 
 ---
 
-## ⚠️ REGRA OBRIGATÓRIA DE MANUTENÇÃO DESTE ARQUIVO
+## ⚠️ REGRAS OBRIGATÓRIAS (MANUTENÇÃO DESTE ARQUIVO & FLUXO GIT)
 
-**Toda alteração que mexa na estrutura do projeto DEVE atualizar este `AGENTS.md` no mesmo commit/tarefa.**
+### 1. Toda alteração estrutural DEVE atualizar este `AGENTS.md` no mesmo commit/tarefa
 
 Considera-se "alteração estrutural" (lista não exaustiva):
 
@@ -28,6 +28,23 @@ Como atualizar:
 3. Se a mudança também afetar o usuário final, atualize o `README.md`.
 
 > Se você é uma IA e terminou uma tarefa estrutural **sem** atualizar este arquivo, a tarefa **não está concluída**.
+
+### 2. Fluxo obrigatório de Git: Nova Feature Branch + Push ao GitHub
+
+Para garantir total controle de versão, rastreabilidade e segurança do código:
+
+- **NUNCA desenvolva ou commite direto na branch `main`**.
+- Toda nova implementação, melhoria ou correção DEVE ser iniciada criando uma branch dedicada:
+  ```bash
+  git checkout -b feature/nome-da-funcionalidade   # para novas funcionalidades
+  git checkout -b fix/nome-da-correcao            # para correções de bugs
+  ```
+- Cada commit dentro da branch DEVE ser atômico, granular e semântico (Conventional Commits), com título claro e corpo explicativo.
+- **Ao concluir a tarefa, a branch DEVE ser obrigatoriamente subida para o GitHub**:
+  ```bash
+  git push -u origin <nome-da-branch>
+  ```
+  Isso permite revisão no GitHub, auditoria detalhada de código e abertura de Pull Request.
 
 ---
 
@@ -313,7 +330,9 @@ Documentos na coleção `configuracoes`:
 - Valores monetários: **sempre** `parseCurrency()` para ler e `formatCurrency()` para exibir (pt-BR).
 - Datas de gastos como string `YYYY-MM-DD`; meses como chave `YYYY-MM`.
 - Layout responsivo: desktop (sidebar) e mobile (bottom nav nativa) — teste ambos ao mexer em navegação.
-- **Padrão de Commits Obrigatório**:
+- **Padrão de Branches e Commits Obrigatório**:
+  - **Branch por Feature**: NUNCA commite direto na `main`. Crie sempre uma branch dedicada (`feature/nome-da-funcionalidade` ou `fix/nome-do-ajuste`).
+  - **Push ao GitHub Obrigatório**: Toda tarefa concluída deve obrigatoriamente ter sua branch enviada ao GitHub (`git push -u origin <branch>`) para permitir rastreabilidade, controle de versão e abertura de Pull Request.
   - Mensagens no padrão **Conventional Commits** em português (`feat:`, `fix(escopo):`, `refactor:`, `chore:`, `docs:`).
   - **Cada commit DEVE ser extremamente claro, granular e explicativo**: nunca faça commits genéricos (como "ajustes", "update", "correções" ou "wip"), nem agrupe alterações de escopos não relacionados em um único commit monolítico.
   - Descreva no título o escopo exato e, sempre que relevante, detalhe no corpo da mensagem o *o que* e o *porquê* da alteração para facilitar auditoria e code review.
@@ -337,6 +356,7 @@ Documentos na coleção `configuracoes`:
 - [x] Novas variáveis de ambiente em `.env.example`.
 - [x] **`AGENTS.md` atualizado** se houve alteração estrutural.
 - [x] `README.md` atualizado se a mudança é visível ao usuário.
+- [x] **Nova branch de feature/fix criada** e **subida para o GitHub** (`git push -u origin <branch>`).
 
 ---
 
@@ -347,4 +367,5 @@ Documentos na coleção `configuracoes`:
 | 2026-10-30 | Criação inicial do AGENTS.md com mapeamento completo do projeto (stack, estrutura, Firestore, regras de negócio, convenções). |
 | 2026-10-30 | Adicionados `CLAUDE.md`, `GEMINI.md` e `.github/copilot-instructions.md` como ponteiros para este arquivo. |
 | 2026-10-30 | Adicionada regra mandatória de commits granulares, semânticos e extremamente claros na seção de convenções. |
+| 2026-10-30 | Adicionada regra mandatória de criação de branch dedicada por alteração (`feature/...` ou `fix/...`) e push obrigatório ao GitHub para controle de versão. |
 | 2026-10-30 | Implementação da página **Metas Futuras & Planejador IA** (`/metas`), incluindo motor matemático `metasCalculos.js`, serviços `metasService.js` e `planoIAService.js` (Firebase AI Logic), hooks `useMetas` e `usePlanoMeta`, componentes visuais (`CardMeta`, `CenariosMeta`, `PlanoIA`, `GraficoEvolucaoMeta`, `ModalNovaMeta`) e 5º item na navegação mobile. |
