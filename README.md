@@ -1,6 +1,6 @@
 # 📊 Guia Econômico
 
-O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e inteligente, desenvolvido com foco na gestão prática de despesas mensais, acompanhamento de faturas de cartão de crédito por ciclo de fechamento, regra orçamentária **50/30/20**, projeção de fluxo de caixa futuro e **captura automática de compras em tempo real via Webhook**.
+O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e inteligente, desenvolvido com foco na gestão prática de despesas mensais, acompanhamento de faturas de cartão de crédito por ciclo de fechamento, regra orçamentária **50/30/20**, projeção de fluxo de caixa futuro, **simulação de metas futuras com IA** e **captura automática de compras em tempo real via Webhook**.
 
 ---
 
@@ -12,6 +12,7 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 | **Estilização** | styled-components 6 | Estilização componentizada com tema Dark Neon |
 | **Autenticação** | Firebase Authentication | Login seguro com conta Google e controle de acesso |
 | **Banco de Dados** | Google Cloud Firestore | Banco NoSQL em nuvem em tempo real (100% gratuito) |
+| **Inteligência Artificial** | Firebase AI Logic (Gemini) | Consultoria inteligente para planejamento de metas sem aperto |
 | **Backend / API** | Vercel Serverless Functions | Endpoint Serverless (`/api/webhook`) em Node.js |
 | **Automação Mobile** | MacroDroid (Android) | Escuta notificações push de compras e dispara Webhook |
 | **Gráficos** | Chart.js + react-chartjs-2 | Visualizações dinâmicas e comparativo orçamentário |
@@ -44,7 +45,17 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 - **Gráfico Comparativo**: Compara a distribuição financeira atual contra a meta ideal (50% Essenciais, 30% Desejos, 20% Poupança/Investimentos), com indicação visual por cores (verde/vermelho).
 - **Projeção de Saldo (Próximos Meses)**: Estimativa de saldo para os próximos 3 meses considerando salário recorrente, gastos fixos essenciais e parcelas futuras de cartão.
 
-### 4. 🔒 Segurança e Privacidade Total
+### 4. 🎯 Metas Futuras & Planejador com IA
+- Cadastro de bens de médio e longo prazo (ex: carro entre R$ 30 mil e R$ 40 mil).
+- **Motor de Cenários Pré-Calculados**:
+  - **À Vista**: acúmulo em 3 ritmos com rendimento de ~100% do CDI (Selic oficial do Banco Central).
+  - **Financiamento**: simulação com tabela Price, parcelas e cálculo real de juros.
+  - **Híbrido Inteligente**: poupança para entrada robusta + financiamento leve em poucas parcelas.
+  - **Consórcio**: parcelas sem juros bancários e estratégia de lance.
+- **Travas de Segurança Financeira**: avaliação automática de impacto na renda (verde para confortável, amarelo para atenção e vermelho para inviável).
+- **Consultoria com Gemini (Firebase AI Logic)**: análise estratégica que gera resumo executivo, passo a passo prático e alertas sobre custos ocultos (IPVA, seguro, ITBI, etc.).
+
+### 5. 🔒 Segurança e Privacidade Total
 - Acesso restrito via autenticação Google.
 - Proteção de rotas no frontend (bloqueia renderização e consultas para usuários não autenticados).
 - Regras de segurança a nível de banco de dados no Firestore (`request.auth != null`), garantindo que ninguém consiga ler ou gravar dados sem autorização.
@@ -64,36 +75,22 @@ guia-economico/
 │   ├── components/                # Componentes reutilizáveis
 │   │   ├── Card/                  # Card de exibição de métricas
 │   │   ├── CardComparativo/       # Gráfico de barras da regra 50/30/20
-│   │   ├── CardSaldoGrafico/      # Gráfico de linha de fluxo de caixa
-│   │   ├── ListaProximosMeses/    # Lista de projeção de saldo futuro
-│   │   ├── Logo/                  # Identidade visual em vetor com efeitos neon
-│   │   ├── ModalEditarGasto/      # Modal de alteração e exclusão de despesas
-│   │   ├── ModalGastoEssencial/   # Modal de gastos fixos
-│   │   ├── ModalNovoGasto/        # Modal de lançamento manual de despesa
-│   │   └── ModalReceita/          # Modal de entrada de saldo/salário
+│   │   ├── CardMeta/              # Card de visualização e progresso da meta
+│   │   ├── CenariosMeta/          # Abas comparativas de cenários (À vista, Financiamento, Híbrido, Consórcio)
+│   │   ├── GraficoEvolucaoMeta/   # Gráfico de acúmulo patrimonial vs meta
+│   │   ├── ModalNovaMeta/         # Modal de cadastro e edição de metas
+│   │   ├── PlanoIA/               # Painel de consultoria e recomendações da IA
+│   │   └── ...                    # Outros componentes e modais
 │   ├── config/
 │   │   └── firebase.js            # Inicialização do Firebase e Firestore
-│   ├── context/                   # Contextos de estado global
-│   │   ├── AuthContext.jsx        # Autenticação Google e controle de sessão
-│   │   ├── GastosContext.jsx      # Gestão de compras com cartão e ciclos
-│   │   ├── SaldoContext.jsx       # Gestão de receitas e salário
-│   │   ├── EssencialContext.jsx   # Gestão de gastos essenciais fixos
-│   │   └── MesContext.jsx         # Controle e navegação de meses
-│   ├── hooks/                     # Custom hooks para cálculos e resumos
-│   ├── pages/                     # Páginas da aplicação
-│   │   ├── Home/                  # Dashboard principal
-│   │   ├── Cartoes/               # Faturas detalhadas por cartão e ciclo
-│   │   ├── Login/                 # Tela de login com Google
-│   │   ├── Outlet/                # Layout mestre com Sidebar e Perfil
-│   │   └── Pagina404/             # Página para rotas não encontradas
+│   ├── context/                   # Contextos de estado global (Auth, Gastos, Saldo, Essencial, Mes)
+│   ├── hooks/                     # Custom hooks (useMetas, usePlanoMeta, useProjecaoSaldo, etc.)
+│   ├── pages/                     # Páginas (Home, Cartoes, Saldos, Insights, Metas, Login)
 │   ├── routes/
 │   │   └── AppRoutes.jsx          # Definição de rotas com React Router
-│   ├── services/                  # Camada de comunicação com Firestore
-│   │   ├── gastosService.js
-│   │   ├── saldoService.js
-│   │   └── essencial.js
+│   ├── services/                  # Camada de comunicação com Firestore e APIs externas
 │   ├── styles/                    # Temas e estilos globais (Theme & GlobalStyle)
-│   └── utils/                     # Formatadores monetários e parsers de notificação
+│   └── utils/                     # Formatadores monetários, cálculos matemáticos e parsers
 ├── vercel.json                    # Configuração de rewrites SPA para a Vercel
 ├── package.json
 └── vite.config.js

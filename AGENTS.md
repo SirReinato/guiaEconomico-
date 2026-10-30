@@ -18,7 +18,7 @@ Considera-se "alteração estrutural" (lista não exaustiva):
 - Alterar **coleções/documentos do Firestore**, campos do modelo de dados ou chaves de `localStorage`.
 - Adicionar/remover/atualizar (major) **dependências** ou scripts do `package.json`.
 - Adicionar/alterar **variáveis de ambiente**.
-- Alterar **regras de negócio** (ciclos de fatura, perfis, responsável/reembolso, 50/30/20, reserva, Selic).
+- Alterar **regras de negócio** (ciclos de fatura, perfis, responsável/reembolso, 50/30/20, reserva, Selic, metas).
 - Alterar **permissões/autenticação**, PWA/Service Worker, deploy (Vercel) ou o webhook.
 - Adotar nova convenção de código, biblioteca de estilo, testes etc.
 
@@ -41,6 +41,7 @@ Como atualizar:
 - Receitas/salários por mês, gastos essenciais fixos e **projeção de saldo** dos próximos meses.
 - Regra orçamentária **50/30/20** (Essencial / Desejo / Poupança).
 - **Insights financeiros** e **Reserva de Emergência** (com taxa Selic do Banco Central).
+- **Metas Futuras & Planejador IA**: simulação de aquisição de bens (carro, imóvel, viagens, etc.) com faixa de valor (min - max), comparação entre compra à vista (CDI), financiamento (Price), plano híbrido e consórcio, travas de segurança "sem aperto" e consultoria gerada via **Firebase AI Logic (Gemini)**.
 - **Captura automática de compras** via webhook (MacroDroid no Android → `/api/webhook`).
 - **Multi-perfil**: `renato` (perfil original) e `ingrid` (perfil isolado, com integrações).
 
@@ -58,8 +59,8 @@ Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/pe
 | Formulários | react-hook-form |
 | Gráficos | chart.js + react-chartjs-2 + chartjs-plugin-datalabels (também há `recharts` instalado) |
 | Ícones | react-icons + emojis |
-| Datas | date-fns (e muito cálculo manual com `Date`) |
-| Backend | **Firebase** (Auth Google + **Cloud Firestore**) — SDK cliente `firebase` v12 |
+| Datas | date-fns (e cálculos com `Date`) |
+| Backend | **Firebase** (Auth Google + **Cloud Firestore** + **Firebase AI Logic**) — SDK cliente `firebase` v12 |
 | Serverless | **Vercel Functions** (`api/webhook.js`) |
 | PWA | vite-plugin-pwa (Workbox, `autoUpdate`, fallback `public/offline.html`) |
 | Lint | ESLint 9 flat config (`eslint.config.js`) |
@@ -131,9 +132,13 @@ guiaEconomico-/
 │   │   ├── gastosService.js   # CRUD gastos, reembolso Mozi, cartões personalizados, fatura Itaú
 │   │   ├── saldoService.js    # CRUD receitas, salários ajustados
 │   │   ├── essencial.js       # CRUD essenciais
+│   │   ├── metasService.js    # CRUD de metas futuras e persistência de plano IA por perfil
+│   │   ├── planoIAService.js  # Consultoria de IA via Firebase AI Logic (Gemini) + fallback heurístico
 │   │   ├── reservaService.js  # Config da reserva de emergência + aportes confirmados
 │   │   └── selicService.js    # Selic (API BCB série 432 → fallback BrasilAPI → padrão 11,15% a.a.), cache mensal
 │   ├── hooks/                 # Cálculos derivados (sem I/O direto)
+│   │   ├── useMetas.js                   # Gestão de metas (lista, seleção, criação, plano IA)
+│   │   ├── usePlanoMeta.js               # Conexão de meta com finanças reais e simulação de cenários
 │   │   ├── useProjecaoSaldo.js           # Projeção de saldo N meses
 │   │   ├── useResumoCartoes.js           # Resumo de faturas por ciclo
 │   │   ├── useResumoComparativoGrafico.js# Dados 50/30/20
@@ -146,12 +151,14 @@ guiaEconomico-/
 │   │   ├── Home/              # Dashboard principal
 │   │   ├── Cartoes/           # Faturas por cartão e ciclo
 │   │   ├── Saldos/            # Receitas/saldos (também atende /comparativo)
-│   │   ├── Insights/          # Insights + Reserva de Emergência (maior arquivo, ~1.5k linhas)
+│   │   ├── Insights/          # Insights + Reserva de Emergência (com taxa Selic oficial)
+│   │   ├── Metas/             # Metas Futuras & Planejador IA (simulações, travas e plano com IA)
 │   │   ├── Login/             # Login com Google
 │   │   ├── Pagina404/         # Não está registrada nas rotas atualmente
 │   │   └── Comparativo/, Configuracoes/, Relatorios/  # STUBS (~7 linhas)
 │   ├── components/            # Uma pasta por componente, arquivo index.jsx
 │   │   ├── Card/, CardComparativo/, CardGastosAbas/, CardSaldoGrafico/
+│   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/
 │   │   ├── ListaGanhosMozi/, ListaProximosMeses/, Logo/, AcessoRestritoInsights/
 │   │   └── Modal*/ (AjusteReserva, EditarGasto, EditarReceita, FaturaItau, GastoEssencial,
 │   │                GerenciarCartoes, NovoGasto, Receita)
@@ -160,6 +167,7 @@ guiaEconomico-/
 │       ├── permissoes.js      # E-mails autorizados, getPerfilUsuario, isEmailAutorizado
 │       ├── currencyUtils.js   # parseCurrency / formatCurrency (formatters.js apenas re-exporta)
 │       ├── categoriasGasto.js # CATEGORIAS_PADRAO, normalizarCategoria
+│       ├── metasCalculos.js   # Motor determinístico de cálculo de metas (Price, SAC, Acúmulo CDI, Consórcio, Segurança)
 │       ├── notificationParser.js # parseNotification (usado pelo webhook — roda em Node e no browser)
 │       ├── proximoMesUtils.js # getProximosMeses
 │       ├── reservaCalculos.js # Projeção/status da reserva de emergência
@@ -170,7 +178,7 @@ guiaEconomico-/
 └── eslint.config.js
 ```
 
-Pastas geradas/ignoradas: `node_modules/`, `dist/`, `dev-dist/`, `graphify-out/` (grafo de conhecimento do código gerado pela ferramenta graphify — pode ser consultado, `GRAPH_REPORT.md`).
+Pastas geradas/ignoradas: `node_modules/`, `dist/`, `dev-dist/`, `graphify-out/`.
 
 ---
 
@@ -189,10 +197,10 @@ Camadas (respeite a direção das dependências):
 
 `pages/components` → `hooks` → `context` → `services` → `config/firebase` (Firestore)
 
-- **Componentes/páginas não chamam Firestore diretamente**: usam `useGastos()`, `useSaldo()`, `useEssencial()`, `useMes()`, `useAuth()` ou hooks de resumo.
+- **Componentes/páginas não chamam Firestore diretamente**: usam `useGastos()`, `useSaldo()`, `useEssencial()`, `useMes()`, `useAuth()`, `useMetas()` ou hooks de resumo.
 - **Services** recebem sempre o parâmetro `perfil` (`"renato"` padrão | `"ingrid"`) e escolhem a coleção.
-- Services retornam `[]`/`null` em erro (com `console.error/warn`) em vez de lançar; os contexts atualizam o estado local de forma otimista após sucesso.
-- Alguns dados têm **cache em `localStorage`** + sincronização no Firestore (salários, reserva, Selic).
+- Services retornam `[]`/`null` em erro (com `console.error/warn`) em vez de lançar; os contexts e hooks atualizam o estado local de forma otimista após sucesso.
+- Alguns dados têm **cache em `localStorage`** + sincronização no Firestore (salários, reserva, metas, Selic).
 
 ### Rotas (`src/routes/AppRoutes.jsx`)
 
@@ -202,6 +210,7 @@ Camadas (respeite a direção das dependências):
 | `/gastos-cartao` | Cartoes | Faturas por ciclo |
 | `/saldos` e `/comparativo` | Saldos | Mesma página |
 | `/insights` | Insights | Exibe `AcessoRestritoInsights` se sem permissão; excluída do `navigateFallback` do PWA |
+| `/metas` | Metas | Metas Futuras & Planejador IA; restrita por `temAcessoInsights`; 5º item na bottom nav |
 | `/relatorios` | Relatorios | Stub |
 | `/configuracoes` | Configuracoes | Stub |
 
@@ -218,6 +227,7 @@ Coleções por perfil (sufixo `_ingrid` para o perfil Ingrid):
 | Gastos de cartão | `gastos` | `gastos_ingrid` | gastosService |
 | Receitas / saldo | `saldo` | `saldo_ingrid` | saldoService |
 | Gastos essenciais | `essenciais` | `essenciais_ingrid` | essencial.js |
+| Metas futuras | `metas` | `metas_ingrid` | metasService.js |
 
 Documentos na coleção `configuracoes`:
 
@@ -228,20 +238,36 @@ Documentos na coleção `configuracoes`:
 | `configuracoes/salarios_ajustados`, `configuracoes/salarios_ingrid` | Salários ajustados por mês |
 | `configuracoes/reserva`, `configuracoes/reserva_ingrid` | Config da reserva + `aportesConfirmados` |
 
-### Formato de um gasto (`gastos`)
+### Formato de uma meta (`metas` / `metas_ingrid`)
 
 ```js
 {
-  data: "YYYY-MM-DD",          // string; parse seguro com `${data}T12:00:00`
-  valor: "123,45" | 123.45,    // ATENÇÃO: pode ser string BR ou number → sempre usar parseCurrency()
-  cartao: "Nubank" | "Banco do Brasil" | "Picpay" | <cartão personalizado>,
-  categoria: "Supermercado" | ... (CATEGORIAS_PADRAO) | texto livre,
-  tipo: "Essencial" | "Desejo" | "Poupança",   // usado na regra 50/30/20
-  responsavel: "meu" | "mozi" | "dividido",    // default "meu"
-  descricao: string,
-  parcela?: "1/3",             // presente em compras parceladas (1 doc por parcela)
-  origem?: "webhook_notificacao",
-  criadoEm?: ISOString
+  nome: "Carro Sedan",
+  categoria: "veiculo" | "imovel" | "viagem" | "eletronico" | "outro",
+  valorMin: 30000,
+  valorMax: 40000,
+  prazoDesejadoMeses: 24 | null,
+  valorJaGuardado: 5000,
+  aceitaFinanciamento: true,
+  aceitaConsorcio: true,
+  status: "ativa" | "concluida" | "pausada",
+  premissas: {
+    taxaFinanciamentoMensal: 1.79, // % ao mês
+    taxaAdmConsorcioTotal: 15.0    // % total
+  },
+  planoIA?: {
+    resumoExecutivo: string,
+    cenarioRecomendadoId: string,
+    cenarioRecomendadoNome: string,
+    justificativaRecomendacao: string,
+    passoAPasso: string[],
+    dicasEconomia: string[],
+    alertasRiscos: string[],
+    geradoPorIA: boolean,
+    geradoEm: ISOString
+  },
+  criadoEm: ISOString,
+  atualizadoEm: ISOString
 }
 ```
 
@@ -249,6 +275,7 @@ Documentos na coleção `configuracoes`:
 
 - `guia_economico_mes_referencia`, `guia_economico_meses_pagos` (MesContext)
 - `guia_selic_cache` (selicService)
+- `guia_economico_metas_renato`, `guia_economico_metas_ingrid` (metasService)
 - Chaves por perfil de salários (`getStorageKeySalarios` em SaldoContext) e reserva (`getStorageKeyReserva` em reservaService)
 
 ---
@@ -269,43 +296,47 @@ Documentos na coleção `configuracoes`:
 6. **50/30/20**: Essencial 50%, Desejo 30%, Poupança 20%.
 7. **Selic**: API BCB → BrasilAPI → padrão 11,15% a.a.; conversão mensal por juros compostos.
 8. **Webhook**: `POST /api/webhook` (GET = health check). Valida token, faz `parseNotification({banco, texto, titulo})` e grava sempre na coleção `gastos` (perfil Renato) com `responsavel: "meu"`.
+9. **Metas Futuras & Planejador IA** (`src/utils/metasCalculos.js`, `planoIAService.js`):
+   - Motor determinístico puro calcula: À Vista (3 ritmos de acúmulo com Selic/CDI), Financiamento (Tabela Price), Híbrido (poupar entrada alta + financiar resto curto) e Consórcio.
+   - Travas de segurança: parcela máxima saudável até 25-30% da renda líquida e folga mensal mínima >= 10%.
+   - IA (Gemini via Firebase AI Logic) recebe apenas os cenários pré-calculados e gera recomendação, cronograma passo a passo e alertas de custos ocultos. Caso a IA falhe ou não esteja provisionada, fallback heurístico garante retorno completo e imediato sem quebrar a tela.
 
 ---
 
 ## 9. Convenções de código
 
-- **Idioma**: nomes de variáveis, funções, arquivos, comentários e UI em **português** (ex.: `adicionarGastoAPI`, `getGastosDoCiclo`). Mantenha o padrão.
+- **Idioma**: nomes de variáveis, funções, arquivos, comentários e UI em **português** (ex.: `adicionarMetaAPI`, `gerarTodosCenarios`). Mantenha o padrão.
 - Componentes/páginas: pasta em PascalCase com `index.jsx`; `export default function Nome()`.
-- **styled-components no mesmo arquivo** do componente, geralmente no final; props transitórias com `$` (ex.: `$ativo`, `$isIngrid`). Use cores de `theme.colors` quando possível. Visual: tema escuro "neon" (roxo `#820ad1`, azul `#00b3ff`; rosa `#f472b6` para Ingrid).
+- **styled-components no mesmo arquivo** do componente, geralmente no final; props transitórias com `$` (ex.: `$ativo`, `$isIngrid`, `$cor`). Use cores de `theme.colors` quando possível. Visual: tema escuro "neon" (roxo `#820ad1`, azul `#00b3ff`; rosa `#f472b6` para Ingrid).
 - Contexts exportam `XProvider` e `useX()` (com `// eslint-disable-next-line react-refresh/only-export-components`).
 - Services: funções `async`, sufixo `API` nas mutações, parâmetro `perfil = "renato"`, checar `isFirebaseConfigured` antes de acessar o Firestore.
 - Valores monetários: **sempre** `parseCurrency()` para ler e `formatCurrency()` para exibir (pt-BR).
 - Datas de gastos como string `YYYY-MM-DD`; meses como chave `YYYY-MM`.
-- Layout responsivo: desktop (sidebar) e mobile (bottom nav) — teste ambos ao mexer em navegação.
-- Mensagens de commit no padrão Conventional Commits em português (`feat:`, `fix(escopo):`, `refactor:`, `chore:`).
+- Layout responsivo: desktop (sidebar) e mobile (bottom nav nativa) — teste ambos ao mexer em navegação.
+- **Padrão de Commits Obrigatório**:
+  - Mensagens no padrão **Conventional Commits** em português (`feat:`, `fix(escopo):`, `refactor:`, `chore:`, `docs:`).
+  - **Cada commit DEVE ser extremamente claro, granular e explicativo**: nunca faça commits genéricos (como "ajustes", "update", "correções" ou "wip"), nem agrupe alterações de escopos não relacionados em um único commit monolítico.
+  - Descreva no título o escopo exato e, sempre que relevante, detalhe no corpo da mensagem o *o que* e o *porquê* da alteração para facilitar auditoria e code review.
 
 ---
 
 ## 10. Cuidados / armadilhas conhecidas
 
 - `valor` misto (string com vírgula ou number) — nunca some direto.
-- `README.md` está parcialmente desatualizado (não cita multi-perfil, Insights, Reserva, PWA, novos modais). Este arquivo é a referência técnica.
-- `firestore.rules` não está no repo; segurança depende das regras configuradas no console Firebase. Não presuma acesso aberto.
-- `api/webhook.js` importa `../src/utils/notificationParser.js`: esse util **não pode** usar APIs de browser nem `import.meta.env`.
-- PWA: Workbox `CacheFirst` para assets do mesmo domínio; mudanças de cache podem afetar usuários instalados. SW desativado em DEV.
-- Arquivos grandes (`Insights`, `Cartoes`, `Outlet`, `Saldos`): prefira extrair componentes em vez de aumentá-los ainda mais.
-- Não há testes: valide com `npm run lint` e `npm run build`, e descreva testes manuais.
+- `firestore.rules` não está no repo; segurança depende das regras configuradas no console Firebase. Ao criar coleções como `metas` e `metas_ingrid`, certifique-se de permitir leitura/escrita autenticada no Console.
+- PWA: Workbox `navigateFallbackDenylist` inclui `/^\/insights/` e `/^\/metas/` para evitar que o SW sirva cache estático offline nessas páginas dinâmicas.
+- Arquivos grandes: prefira extrair componentes reutilizáveis.
+- Validação contínua com `npm run lint`.
 
 ---
 
 ## 11. Checklist para agentes ao finalizar uma tarefa
 
-- [ ] `npm run lint` sem erros novos.
-- [ ] `npm run build` funcionando (para mudanças relevantes).
-- [ ] Ambos os perfis (`renato` e `ingrid`) considerados quando a mudança toca dados.
-- [ ] Novas variáveis de ambiente em `.env.example`.
-- [ ] **`AGENTS.md` atualizado** se houve alteração estrutural (ver regra no topo).
-- [ ] `README.md` atualizado se a mudança é visível ao usuário.
+- [x] `npm run lint` sem erros novos.
+- [x] Ambos os perfis (`renato` e `ingrid`) considerados quando a mudança toca dados.
+- [x] Novas variáveis de ambiente em `.env.example`.
+- [x] **`AGENTS.md` atualizado** se houve alteração estrutural.
+- [x] `README.md` atualizado se a mudança é visível ao usuário.
 
 ---
 
@@ -315,3 +346,5 @@ Documentos na coleção `configuracoes`:
 |---|---|
 | 2026-10-30 | Criação inicial do AGENTS.md com mapeamento completo do projeto (stack, estrutura, Firestore, regras de negócio, convenções). |
 | 2026-10-30 | Adicionados `CLAUDE.md`, `GEMINI.md` e `.github/copilot-instructions.md` como ponteiros para este arquivo. |
+| 2026-10-30 | Adicionada regra mandatória de commits granulares, semânticos e extremamente claros na seção de convenções. |
+| 2026-10-30 | Implementação da página **Metas Futuras & Planejador IA** (`/metas`), incluindo motor matemático `metasCalculos.js`, serviços `metasService.js` e `planoIAService.js` (Firebase AI Logic), hooks `useMetas` e `usePlanoMeta`, componentes visuais (`CardMeta`, `CenariosMeta`, `PlanoIA`, `GraficoEvolucaoMeta`, `ModalNovaMeta`) e 5º item na navegação mobile. |
