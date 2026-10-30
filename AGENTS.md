@@ -175,7 +175,7 @@ guiaEconomico-/
 │   │   └── Comparativo/, Configuracoes/, Relatorios/  # STUBS (~7 linhas)
 │   ├── components/            # Uma pasta por componente, arquivo index.jsx
 │   │   ├── Card/, CardComparativo/, CardGastosAbas/, CardSaldoGrafico/
-│   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/
+│   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/, PlanoPrincipalDetalhado/
 │   │   ├── ListaGanhosMozi/, ListaProximosMeses/, Logo/, AcessoRestritoInsights/
 │   │   └── Modal*/ (AjusteReserva, EditarGasto, EditarReceita, FaturaItau, GastoEssencial,
 │   │                GerenciarCartoes, NovoGasto, Receita)
@@ -267,6 +267,7 @@ Documentos na coleção `configuracoes`:
   valorJaGuardado: 5000,
   aceitaFinanciamento: true,
   aceitaConsorcio: true,
+  cenarioAdotadoId?: string,
   status: "ativa" | "concluida" | "pausada",
   premissas: {
     taxaFinanciamentoMensal: 1.79, // % ao mês
@@ -315,6 +316,10 @@ Documentos na coleção `configuracoes`:
 8. **Webhook**: `POST /api/webhook` (GET = health check). Valida token, faz `parseNotification({banco, texto, titulo})` e grava sempre na coleção `gastos` (perfil Renato) com `responsavel: "meu"`.
 9. **Metas Futuras & Planejador IA** (`src/utils/metasCalculos.js`, `planoIAService.js`):
    - Motor determinístico puro calcula: À Vista (3 ritmos de acúmulo com Selic/CDI), Financiamento (Tabela Price), Híbrido (poupar entrada alta + financiar resto curto) e Consórcio.
+   - Prazos ricos calculados em meses, anos e data exata de conquista (`formatarPrazoMesesEAnos`).
+   - Puxar valores do Insight vigente (`reservaAtual` do mês, capacidade de sobra mensal livre e taxa Selic) no modal de cadastro com 1 clique.
+   - Cenário Principal Adotado (`cenarioAdotadoId`): o usuário pode escolher e adotar qualquer cenário como seu plano principal a qualquer momento.
+   - Visualização no padrão **Insights**: Cards de métricas com cores neon + cronograma mês a mês detalhado (`PlanoPrincipalDetalhado`) em formato de Planilha ou Cards com marcos de conquista.
    - Travas de segurança: parcela máxima saudável até 25-30% da renda líquida e folga mensal mínima >= 10%.
    - IA (Gemini via Firebase AI Logic) recebe apenas os cenários pré-calculados e gera recomendação, cronograma passo a passo e alertas de custos ocultos. Caso a IA falhe ou não esteja provisionada, fallback heurístico garante retorno completo e imediato sem quebrar a tela.
 
@@ -369,3 +374,4 @@ Documentos na coleção `configuracoes`:
 | 2026-10-30 | Adicionada regra mandatória de commits granulares, semânticos e extremamente claros na seção de convenções. |
 | 2026-10-30 | Adicionada regra mandatória de criação de branch dedicada por alteração (`feature/...` ou `fix/...`) e push obrigatório ao GitHub para controle de versão. |
 | 2026-10-30 | Implementação da página **Metas Futuras & Planejador IA** (`/metas`), incluindo motor matemático `metasCalculos.js`, serviços `metasService.js` e `planoIAService.js` (Firebase AI Logic), hooks `useMetas` e `usePlanoMeta`, componentes visuais (`CardMeta`, `CenariosMeta`, `PlanoIA`, `GraficoEvolucaoMeta`, `ModalNovaMeta`) e 5º item na navegação mobile. |
+| 2026-10-30 | Adição da integração de valores vigentes do Insight no `ModalNovaMeta`, seleção de Cenário Principal com persistência (`cenarioAdotadoId`), componente `PlanoPrincipalDetalhado` no formato rico de Insights (cards de métricas + linha do tempo mês a mês em tabela e cards) e formatação de prazos informando meses, anos e data estimada de conquista (`formatarPrazoMesesEAnos`). |
