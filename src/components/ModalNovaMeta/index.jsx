@@ -4,9 +4,10 @@ import styled from "styled-components";
 import { parseCurrency, formatCurrency } from "../../utils/currencyUtils";
 import { TAXAS_PADRAO_CATEGORIA } from "../../utils/metasCalculos";
 
-export default function ModalNovaMeta({ onClose, onSave, metaEditando = null }) {
+export default function ModalNovaMeta({ onClose, onSave, metaEditando = null, dadosInsight = null }) {
     const isEdicao = Boolean(metaEditando && metaEditando.id);
     const [mostrarAvancadas, setMostrarAvancadas] = useState(false);
+    const [insightAplicado, setInsightAplicado] = useState(false);
 
     const { register, handleSubmit, watch, setValue } = useForm({
         defaultValues: {
@@ -33,6 +34,23 @@ export default function ModalNovaMeta({ onClose, onSave, metaEditando = null }) 
             setValue("taxaAdmConsorcioTotal", padraoCat.taxaAdmConsorcioTotal);
         }
     }, [categoriaSelecionada, isEdicao, padraoCat, setValue]);
+
+    const handleAplicarDadosInsight = () => {
+        if (!dadosInsight) return;
+        if (dadosInsight.reservaAtual !== undefined) {
+            setValue("valorJaGuardado", formatCurrency(dadosInsight.reservaAtual).replace("R$", "").trim());
+        }
+        const vMin = parseCurrency(watch("valorMin"));
+        if (vMin > 0 && dadosInsight.sobraReal > 0 && !watch("prazoDesejadoMeses")) {
+            const falta = Math.max(0, vMin - (dadosInsight.reservaAtual || 0));
+            const mesesSugeridos = Math.ceil(falta / (dadosInsight.sobraReal * 0.7));
+            if (mesesSugeridos > 0 && mesesSugeridos <= 360) {
+                setValue("prazoDesejadoMeses", mesesSugeridos);
+            }
+        }
+        setInsightAplicado(true);
+        setTimeout(() => setInsightAplicado(false), 5000);
+    };
 
     const onSubmit = (dados) => {
         const vMin = parseCurrency(dados.valorMin);
@@ -71,6 +89,44 @@ export default function ModalNovaMeta({ onClose, onSave, metaEditando = null }) 
                 </Header>
 
                 <Form onSubmit={handleSubmit(onSubmit)}>
+                    {dadosInsight && (
+                        <CardSugestaoInsight>
+                            <TopoInsight>
+                                <InfoTopoInsight>
+                                    <IconeRaio>💡</IconeRaio>
+                                    <div>
+                                        <TituloSugestao>Usar Valores Atuais do Insight</TituloSugestao>
+                                        <SubtituloSugestao>Preenche com a reserva acumulada e capacidade do mês vigente</SubtituloSugestao>
+                                    </div>
+                                </InfoTopoInsight>
+                                <BotaoPuxarInsight type="button" onClick={handleAplicarDadosInsight}>
+                                    ⚡ Aplicar Valores do Mês
+                                </BotaoPuxarInsight>
+                            </TopoInsight>
+
+                            <GridValoresInsight>
+                                <ItemInsight>
+                                    <span>Reserva Atual (Mês Vigente):</span>
+                                    <strong style={{ color: "#38bdf8" }}>{formatCurrency(dadosInsight.reservaAtual || 0)}</strong>
+                                </ItemInsight>
+                                <ItemInsight>
+                                    <span>Sobra Estimada Livre:</span>
+                                    <strong style={{ color: "#10b981" }}>{formatCurrency(dadosInsight.sobraReal || 0)}/mês</strong>
+                                </ItemInsight>
+                                <ItemInsight>
+                                    <span>Taxa Selic / CDI:</span>
+                                    <strong style={{ color: "#a855f7" }}>{dadosInsight.taxaSelicMensal || 0.93}% a.m.</strong>
+                                </ItemInsight>
+                            </GridValoresInsight>
+
+                            {insightAplicado && (
+                                <AlertaSucessoInsight>
+                                    ✅ Valores do mês vigente aplicados! O campo "Já guardado" foi preenchido com {formatCurrency(dadosInsight.reservaAtual || 0)}.
+                                </AlertaSucessoInsight>
+                            )}
+                        </CardSugestaoInsight>
+                    )}
+
                     <Campo>
                         <Label>Nome do Bem / Objetivo *</Label>
                         <Input
@@ -402,4 +458,100 @@ const BotaoSalvar = styled.button`
         transform: translateY(-1px);
         box-shadow: 0 4px 15px rgba(0, 179, 255, 0.4);
     }
+`;
+
+const CardSugestaoInsight = styled.div`
+    background: linear-gradient(135deg, rgba(130, 10, 209, 0.12), rgba(0, 179, 255, 0.1));
+    border: 1px solid rgba(0, 179, 255, 0.35);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 6px;
+`;
+
+const TopoInsight = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+`;
+
+const InfoTopoInsight = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 10px;
+`;
+
+const IconeRaio = styled.span`
+    font-size: 1.4rem;
+`;
+
+const TituloSugestao = styled.h4`
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #e2e8f0;
+`;
+
+const SubtituloSugestao = styled.p`
+    margin: 2px 0 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+`;
+
+const BotaoPuxarInsight = styled.button`
+    background: linear-gradient(135deg, #0284c7, #820ad1);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+
+    &:hover {
+        opacity: 0.95;
+        transform: scale(1.02);
+        box-shadow: 0 2px 10px rgba(2, 132, 199, 0.4);
+    }
+`;
+
+const GridValoresInsight = styled.div`
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 10px 12px;
+`;
+
+const ItemInsight = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    span {
+        font-size: 0.72rem;
+        color: #94a3b8;
+    }
+    strong {
+        font-size: 0.88rem;
+        color: #f1f5f9;
+        font-weight: 700;
+    }
+`;
+
+const AlertaSucessoInsight = styled.div`
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
 `;
