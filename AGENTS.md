@@ -83,7 +83,7 @@ Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/pe
 | Lint | ESLint 9 flat config (`eslint.config.js`) |
 | Legado | `json-server` + `db.json` (dados antigos/seed; **não** é mais a fonte de dados) |
 
-**Não há** TypeScript, testes automatizados, nem `firestore.rules` versionado no repositório.
+**Não há** TypeScript ou testes automatizados. As regras do Firestore estão versionadas em `firestore.rules` na raiz do projeto com hardening multi-perfil e validações estritas de domínio.
 
 ---
 
@@ -126,6 +126,9 @@ guiaEconomico-/
 ├── CLAUDE.md, GEMINI.md       # Apenas ponteiros para o AGENTS.md (Claude Code / Gemini CLI) — não duplicar conteúdo
 ├── .github/copilot-instructions.md # Ponteiro para o AGENTS.md (GitHub Copilot)
 ├── README.md                  # Documentação voltada ao usuário
+├── SECURITY.md                # Diretrizes de segurança, matriz RBAC, CSP e resposta a incidentes
+├── firestore.rules            # Regras granulares de segurança do Cloud Firestore (RBAC e validação)
+├── firebase.json              # Configuração do Firebase CLI (aponta para firestore.rules)
 ├── api/
 │   └── webhook.js             # Vercel Function: recebe notificação bancária → grava em Firestore "gastos"
 ├── public/
@@ -181,7 +184,8 @@ guiaEconomico-/
 │   │                GerenciarCartoes, NovoGasto, Receita)
 │   ├── styles/base/           # theme.js (cores/espacamentos/tipografia) e GlobalStyle.js
 │   └── utils/
-│       ├── permissoes.js      # E-mails autorizados, getPerfilUsuario, isEmailAutorizado
+│       ├── permissoes.js      # E-mails autorizados, getPerfilUsuario, isEmailAutorizado, isRenato, isIngrid
+│       ├── securityUtils.js   # Higienização de entradas (XSS), validação numérica e de datas
 │       ├── currencyUtils.js   # parseCurrency / formatCurrency (formatters.js apenas re-exporta)
 │       ├── categoriasGasto.js # CATEGORIAS_PADRAO, normalizarCategoria
 │       ├── metasCalculos.js   # Motor determinístico de cálculo de metas (Price, SAC, Acúmulo CDI, Consórcio, Segurança)
@@ -190,7 +194,7 @@ guiaEconomico-/
 │       ├── reservaCalculos.js # Projeção/status da reserva de emergência
 │       └── reservaHistoricoData.js # DADOS_HISTORICOS_INICIAIS da reserva
 ├── db.json                    # Dados legados (json-server / seed)
-├── vercel.json                # Rewrite SPA: tudo → /index.html
+├── vercel.json                # Rewrite SPA + Headers de Segurança HTTP (CSP, HSTS, X-Frame-Options)
 ├── vite.config.js             # React + VitePWA (manifest, Workbox runtimeCaching)
 └── eslint.config.js
 ```
@@ -347,7 +351,7 @@ Documentos na coleção `configuracoes`:
 ## 10. Cuidados / armadilhas conhecidas
 
 - `valor` misto (string com vírgula ou number) — nunca some direto.
-- `firestore.rules` não está no repo; segurança depende das regras configuradas no console Firebase. Ao criar coleções como `metas` e `metas_ingrid`, certifique-se de permitir leitura/escrita autenticada no Console.
+- `firestore.rules`: regras ativas e versionadas na raiz do projeto (`firebase.json` aponta para `firestore.rules`). Deploy via `firebase deploy --only firestore:rules`.
 - PWA: Workbox `navigateFallbackDenylist` inclui `/^\/insights/` e `/^\/metas/` para evitar que o SW sirva cache estático offline nessas páginas dinâmicas.
 - Arquivos grandes: prefira extrair componentes reutilizáveis.
 - Validação contínua com `npm run lint`.
@@ -375,3 +379,5 @@ Documentos na coleção `configuracoes`:
 | 2026-10-30 | Adicionada regra mandatória de criação de branch dedicada por alteração (`feature/...` ou `fix/...`) e push obrigatório ao GitHub para controle de versão. |
 | 2026-10-30 | Implementação da página **Metas Futuras & Planejador IA** (`/metas`), incluindo motor matemático `metasCalculos.js`, serviços `metasService.js` e `planoIAService.js` (Firebase AI Logic), hooks `useMetas` e `usePlanoMeta`, componentes visuais (`CardMeta`, `CenariosMeta`, `PlanoIA`, `GraficoEvolucaoMeta`, `ModalNovaMeta`) e 5º item na navegação mobile. |
 | 2026-10-30 | Adição da integração de valores vigentes do Insight no `ModalNovaMeta`, seleção de Cenário Principal com persistência (`cenarioAdotadoId`), componente `PlanoPrincipalDetalhado` no formato rico de Insights (cards de métricas + linha do tempo mês a mês em tabela e cards) e formatação de prazos informando meses, anos e data estimada de conquista (`formatarPrazoMesesEAnos`). |
+| 2026-10-30 | Criação e versionamento das regras de segurança completas do Cloud Firestore (`firestore.rules`), implementando modelo de autorização RBAC multi-perfil (Renato, Ingrid e Webhook Bot), validações de domínio estritas contra DoS/Update Bypass e bloqueio padrão default deny. |
+| 2026-10-30 | Implementação do **Plano de Segurança Completo**: hardening do webhook bancário com fail-safe defaults, mitigação de Timing Attacks (`crypto.timingSafeEqual`) e sanitização de payloads; configuração de cabeçalhos HTTP estritos e Content Security Policy (CSP) no `vercel.json`; utilitários de sanitização e validação de inputs (`securityUtils.js`); criação do documento de referência `SECURITY.md` e configuração do `firebase.json`. |

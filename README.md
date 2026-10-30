@@ -55,10 +55,15 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 - **Travas de Segurança Financeira**: avaliação automática de impacto na renda (verde para confortável, amarelo para atenção e vermelho para inviável).
 - **Consultoria com Gemini (Firebase AI Logic)**: análise estratégica que gera resumo executivo, passo a passo prático e alertas sobre custos ocultos (IPVA, seguro, ITBI, etc.).
 
-### 5. 🔒 Segurança e Privacidade Total
-- Acesso restrito via autenticação Google.
-- Proteção de rotas no frontend (bloqueia renderização e consultas para usuários não autenticados).
-- Regras de segurança a nível de banco de dados no Firestore (`request.auth != null`), garantindo que ninguém consiga ler ou gravar dados sem autorização.
+### 5. 🔒 Segurança e Privacidade Total (Plano de Segurança Completo)
+- **Autenticação e RBAC Estrito**: Acesso restrito via Google Authentication e controle granular por perfil (`renato` e `ingrid`).
+- **Cloud Firestore Security Rules (`firestore.rules`)**: Regras no servidor com modelo *Default Deny*, validação de schemas em criação e atualização, isolamento de coleções e proteção de campos imutáveis (`criadoEm`). Deploy com `firebase deploy --only firestore:rules`.
+- **Webhook Blindado**: Endpoint `/api/webhook` com *fail-safe defaults* (rejeita requisições se `WEBHOOK_SECRET` não estiver configurado), mitigação contra *Timing Attacks* com `crypto.timingSafeEqual` e sanitização de payloads contra DoS.
+- **Cabeçalhos HTTP Defensivos & Content Security Policy (CSP)**: `vercel.json` configurado com CSP restrito, `X-Frame-Options: DENY` (anti-clickjacking), `X-Content-Type-Options: nosniff` (anti-MIME sniffing) e HSTS com preload.
+- **Higienização de Inputs (`securityUtils.js`)**: Prevenção ativa contra XSS e corrupção de tipos numéricos.
+- Consulte o documento completo em [`SECURITY.md`](./SECURITY.md).
+
+
 
 ---
 
