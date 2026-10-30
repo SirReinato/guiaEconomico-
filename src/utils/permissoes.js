@@ -65,3 +65,24 @@ export function isEmailAutorizado(userEmail) {
 export function isProprietarioInsights(userEmail) {
     return isEmailAutorizado(userEmail);
 }
+
+/**
+ * Retorna se o e-mail pertence ao perfil Renato.
+ *
+ * @param {string|null|undefined} userEmail
+ * @returns {boolean}
+ */
+export function isRenato(userEmail) {
+    return isEmailAutorizado(userEmail) && getPerfilUsuario(userEmail) === "renato";
+}
+
+/**
+ * Retorna se o e-mail pertence ao perfil Ingrid.
+ *
+ * @param {string|null|undefined} userEmail
+ * @returns {boolean}
+ */
+export function isIngrid(userEmail) {
+    return isEmailAutorizado(userEmail) && getPerfilUsuario(userEmail) === "ingrid";
+}
+
