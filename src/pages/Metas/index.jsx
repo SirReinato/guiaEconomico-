@@ -7,6 +7,7 @@ import AcessoRestritoInsights from "../../components/AcessoRestritoInsights";
 import CardMeta from "../../components/CardMeta";
 import CenariosMeta from "../../components/CenariosMeta";
 import PlanoIA from "../../components/PlanoIA";
+import PlanoPrincipalDetalhado from "../../components/PlanoPrincipalDetalhado";
 import GraficoEvolucaoMeta from "../../components/GraficoEvolucaoMeta";
 import ModalNovaMeta from "../../components/ModalNovaMeta";
 import { formatCurrency } from "../../utils/currencyUtils";
@@ -67,6 +68,11 @@ export default function Metas() {
         await gerarPlanoIA(metaAtiva, contextoFinanceiro, cenarios);
     };
 
+    const handleAdotarCenario = async (cenarioId) => {
+        if (!metaAtiva) return;
+        await editarMeta(metaAtiva.id, { cenarioAdotadoId: cenarioId });
+    };
+
     return (
         <PaginaContainer>
             {/* Topo com indicador financeiro do perfil */}
@@ -124,11 +130,28 @@ export default function Metas() {
                                 onGerarPlano={handleGerarPlanoIA}
                             />
 
+                            {/* Plano Principal Adotado (Formato Insights: Métricas + Tabela/Cards Mês a Mês) */}
+                            {cenarios?.cenarioPrincipal && (
+                                <PlanoPrincipalDetalhado
+                                    cenario={cenarios.cenarioPrincipal}
+                                    meta={metaAtiva}
+                                    contextoFinanceiro={contextoFinanceiro}
+                                    onTrocarCenario={() => {
+                                        const el = document.getElementById("secao-cenarios-simulados");
+                                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                                    }}
+                                />
+                            )}
+
                             {/* Cenários Pré-Calculados (Tabs: À Vista, Financiamento, Híbrido, Consórcio) */}
-                            <CenariosMeta
-                                cenarios={cenarios}
-                                contextoFinanceiro={contextoFinanceiro}
-                            />
+                            <div id="secao-cenarios-simulados">
+                                <CenariosMeta
+                                    cenarios={cenarios}
+                                    contextoFinanceiro={contextoFinanceiro}
+                                    cenarioAdotadoId={metaAtiva.cenarioAdotadoId || cenarios?.cenarioPrincipal?.id}
+                                    onAdotarCenario={handleAdotarCenario}
+                                />
+                            </div>
 
                             {/* Gráfico de Evolução Patrimonial vs Meta */}
                             <GraficoEvolucaoMeta
@@ -145,6 +168,7 @@ export default function Metas() {
                     onClose={() => setModalAberto(false)}
                     onSave={handleSalvarMeta}
                     metaEditando={metaParaEditar}
+                    dadosInsight={contextoFinanceiro}
                 />
             )}
         </PaginaContainer>

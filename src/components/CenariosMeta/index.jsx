@@ -2,7 +2,12 @@ import { useState } from "react";
 import styled from "styled-components";
 import { formatCurrency } from "../../utils/currencyUtils";
 
-export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
+export default function CenariosMeta({
+    cenarios,
+    contextoFinanceiro,
+    cenarioAdotadoId = null,
+    onAdotarCenario = null,
+}) {
     const [abaAtiva, setAbaAtiva] = useState("recomendacao"); // "recomendacao" | "avista" | "financiamento" | "hibrido" | "consorcio"
 
     if (!cenarios) return null;
@@ -61,7 +66,19 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
             {/* ABA: RECOMENDAÇÃO RÁPIDA */}
             {abaAtiva === "recomendacao" && recomendacaoRapida && (
                 <CenarioDestaqueCard>
-                    <BadgeDestaque>🏆 Melhor Estratégia "Sem Aperto"</BadgeDestaque>
+                    <TopoCardDestaque>
+                        <BadgeDestaque>🏆 Melhor Estratégia "Sem Aperto"</BadgeDestaque>
+                        {recomendacaoRapida.id === cenarioAdotadoId ? (
+                            <BadgeAdotadoAtivo>⭐ Plano Principal Ativo</BadgeAdotadoAtivo>
+                        ) : onAdotarCenario ? (
+                            <BotaoAdotarPrincipal
+                                type="button"
+                                onClick={() => onAdotarCenario(recomendacaoRapida.id)}
+                            >
+                                🎯 Adotar este Cenário como Plano Principal
+                            </BotaoAdotarPrincipal>
+                        ) : null}
+                    </TopoCardDestaque>
                     <TituloCardDestaque>{recomendacaoRapida.titulo}</TituloCardDestaque>
 
                     <GridMetricasDestaque>
@@ -76,9 +93,9 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                         </MetricaBox>
 
                         <MetricaBox>
-                            <MetricaLabel>Prazo Estimado</MetricaLabel>
-                            <MetricaValor>
-                                {recomendacaoRapida.tempoMesesMedio || recomendacaoRapida.prazoParcelas || recomendacaoRapida.meses} meses
+                            <MetricaLabel>Prazo & Data de Conquista</MetricaLabel>
+                            <MetricaValor style={{ color: "#38bdf8", fontSize: "1.1rem" }}>
+                                {recomendacaoRapida.prazoFormatado?.textoCompleto || `${recomendacaoRapida.tempoMesesMedio || recomendacaoRapida.prazoParcelas || recomendacaoRapida.meses} meses`}
                             </MetricaValor>
                             <MetricaSub>
                                 {recomendacaoRapida.tipo === "avista" ? "Poupança rendendo CDI" : "Parcelas fixas"}
@@ -118,7 +135,7 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
             {abaAtiva === "avista" && (
                 <GridCenarios>
                     {aVista.map((cen) => (
-                        <CardOpcao key={cen.id}>
+                        <CardOpcao key={cen.id} $isAdotado={cen.id === cenarioAdotadoId}>
                             <HeaderCardOpcao>
                                 <TituloOpcao>{cen.titulo}</TituloOpcao>
                                 <BadgeSeguranca $cor={cen.seguranca.cor}>
@@ -132,18 +149,15 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             </LinhaInfo>
 
                             <LinhaInfo>
-                                <span>Tempo (Valor Mínimo):</span>
-                                <strong>{cen.tempoMesesMin} meses</strong>
+                                <span>Prazo Estimado (Médio):</span>
+                                <strong style={{ color: "#00b3ff" }}>
+                                    {cen.prazoFormatado?.textoCompleto || `${cen.tempoMesesMedio} meses`}
+                                </strong>
                             </LinhaInfo>
 
                             <LinhaInfo>
-                                <span>Tempo (Valor Médio):</span>
-                                <strong style={{ color: "#00b3ff" }}>{cen.tempoMesesMedio} meses</strong>
-                            </LinhaInfo>
-
-                            <LinhaInfo>
-                                <span>Tempo (Valor Máximo):</span>
-                                <strong>{cen.tempoMesesMax} meses</strong>
+                                <span>Faixa de Tempo:</span>
+                                <span>{cen.tempoMesesMin}m (mínimo) a {cen.tempoMesesMax}m (máximo)</span>
                             </LinhaInfo>
 
                             <LinhaInfo>
@@ -152,6 +166,19 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             </LinhaInfo>
 
                             <DescricaoOpcao>{cen.descricao}</DescricaoOpcao>
+
+                            <RodapeAcaoCard>
+                                {cen.id === cenarioAdotadoId ? (
+                                    <BadgeAdotadoAtivo>⭐ Plano Principal Ativo</BadgeAdotadoAtivo>
+                                ) : onAdotarCenario ? (
+                                    <BotaoAdotarOpcao
+                                        type="button"
+                                        onClick={() => onAdotarCenario(cen.id)}
+                                    >
+                                        🎯 Adotar este Cenário como Principal
+                                    </BotaoAdotarOpcao>
+                                ) : null}
+                            </RodapeAcaoCard>
                         </CardOpcao>
                     ))}
                 </GridCenarios>
@@ -161,7 +188,7 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
             {abaAtiva === "financiamento" && (
                 <GridCenarios>
                     {financiamento.map((cen) => (
-                        <CardOpcao key={cen.id}>
+                        <CardOpcao key={cen.id} $isAdotado={cen.id === cenarioAdotadoId}>
                             <HeaderCardOpcao>
                                 <div>
                                     <TituloOpcao>{cen.titulo}</TituloOpcao>
@@ -180,7 +207,9 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             {cen.mesesParaEntrada > 0 && (
                                 <LinhaInfo>
                                     <span>Tempo para Juntar Entrada:</span>
-                                    <span style={{ color: "#f59e0b" }}>{cen.mesesParaEntrada} meses (guardando {formatCurrency(cen.aporteParaEntrada)}/mês)</span>
+                                    <span style={{ color: "#f59e0b" }}>
+                                        {cen.prazoEntradaFormatado?.textoCompleto || `${cen.mesesParaEntrada} meses`} (guardando {formatCurrency(cen.aporteParaEntrada)}/mês)
+                                    </span>
                                 </LinhaInfo>
                             )}
 
@@ -188,6 +217,13 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                                 <span>Parcela Fixa ({cen.prazoParcelas}x):</span>
                                 <strong style={{ color: cen.seguranca.cor, fontSize: "1.05rem" }}>
                                     {formatCurrency(cen.parcela)}/mês
+                                </strong>
+                            </LinhaInfo>
+
+                            <LinhaInfo>
+                                <span>Prazo Total até Quitação:</span>
+                                <strong style={{ color: "#38bdf8" }}>
+                                    {cen.prazoFormatado?.textoCompleto || `${cen.mesesTotalConquista} meses`}
                                 </strong>
                             </LinhaInfo>
 
@@ -207,6 +243,19 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             </LinhaInfo>
 
                             <DescricaoOpcao>{cen.seguranca.motivo}</DescricaoOpcao>
+
+                            <RodapeAcaoCard>
+                                {cen.id === cenarioAdotadoId ? (
+                                    <BadgeAdotadoAtivo>⭐ Plano Principal Ativo</BadgeAdotadoAtivo>
+                                ) : onAdotarCenario ? (
+                                    <BotaoAdotarOpcao
+                                        type="button"
+                                        onClick={() => onAdotarCenario(cen.id)}
+                                    >
+                                        🎯 Adotar este Cenário como Principal
+                                    </BotaoAdotarOpcao>
+                                ) : null}
+                            </RodapeAcaoCard>
                         </CardOpcao>
                     ))}
                 </GridCenarios>
@@ -216,7 +265,7 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
             {abaAtiva === "hibrido" && (
                 <GridCenarios>
                     {hibrido.map((cen) => (
-                        <CardOpcao key={cen.id}>
+                        <CardOpcao key={cen.id} $isAdotado={cen.id === cenarioAdotadoId}>
                             <HeaderCardOpcao>
                                 <TituloOpcao>{cen.titulo}</TituloOpcao>
                                 <BadgeSeguranca $cor={cen.seguranca.cor}>
@@ -226,7 +275,9 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
 
                             <LinhaInfo>
                                 <span>1ª Fase (Poupar):</span>
-                                <strong>{cen.mesesPoupando} meses guardando {formatCurrency(cen.aporteFasePoupanca)}/mês</strong>
+                                <strong>
+                                    {cen.prazoFase1Formatado?.anosTexto || `${cen.mesesPoupando} meses`} guardando {formatCurrency(cen.aporteFasePoupanca)}/mês
+                                </strong>
                             </LinhaInfo>
 
                             <LinhaInfo>
@@ -240,6 +291,13 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             </LinhaInfo>
 
                             <LinhaInfo>
+                                <span>Prazo Total até Quitação:</span>
+                                <strong style={{ color: "#38bdf8" }}>
+                                    {cen.prazoFormatado?.textoCompleto || `${cen.mesesTotalConquista} meses`}
+                                </strong>
+                            </LinhaInfo>
+
+                            <LinhaInfo>
                                 <span>Juros Totais (Reduzidos):</span>
                                 <strong style={{ color: "#f59e0b" }}>+{formatCurrency(cen.jurosTotal)}</strong>
                             </LinhaInfo>
@@ -250,6 +308,19 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             </LinhaInfo>
 
                             <DescricaoOpcao>{cen.descricao}</DescricaoOpcao>
+
+                            <RodapeAcaoCard>
+                                {cen.id === cenarioAdotadoId ? (
+                                    <BadgeAdotadoAtivo>⭐ Plano Principal Ativo</BadgeAdotadoAtivo>
+                                ) : onAdotarCenario ? (
+                                    <BotaoAdotarOpcao
+                                        type="button"
+                                        onClick={() => onAdotarCenario(cen.id)}
+                                    >
+                                        🎯 Adotar este Cenário como Principal
+                                    </BotaoAdotarOpcao>
+                                ) : null}
+                            </RodapeAcaoCard>
                         </CardOpcao>
                     ))}
                 </GridCenarios>
@@ -259,7 +330,7 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
             {abaAtiva === "consorcio" && (
                 <GridCenarios>
                     {consorcio.map((cen) => (
-                        <CardOpcao key={cen.id}>
+                        <CardOpcao key={cen.id} $isAdotado={cen.id === cenarioAdotadoId}>
                             <HeaderCardOpcao>
                                 <TituloOpcao>{cen.titulo}</TituloOpcao>
                                 <BadgeSeguranca $cor={cen.seguranca.cor}>
@@ -271,6 +342,13 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                                 <span>Parcela do Consórcio:</span>
                                 <strong style={{ color: "#00b3ff", fontSize: "1.05rem" }}>
                                     {formatCurrency(cen.parcela)}/mês
+                                </strong>
+                            </LinhaInfo>
+
+                            <LinhaInfo>
+                                <span>Prazo Total do Grupo:</span>
+                                <strong style={{ color: "#38bdf8" }}>
+                                    {cen.prazoFormatado?.textoCompleto || `${cen.meses} meses`}
                                 </strong>
                             </LinhaInfo>
 
@@ -292,6 +370,19 @@ export default function CenariosMeta({ cenarios, contextoFinanceiro }) {
                             <DescricaoOpcao style={{ borderLeft: "3px solid #eab308" }}>
                                 💡 <strong>Estratégia:</strong> {cen.estrategiaLance}
                             </DescricaoOpcao>
+
+                            <RodapeAcaoCard>
+                                {cen.id === cenarioAdotadoId ? (
+                                    <BadgeAdotadoAtivo>⭐ Plano Principal Ativo</BadgeAdotadoAtivo>
+                                ) : onAdotarCenario ? (
+                                    <BotaoAdotarOpcao
+                                        type="button"
+                                        onClick={() => onAdotarCenario(cen.id)}
+                                    >
+                                        🎯 Adotar este Cenário como Principal
+                                    </BotaoAdotarOpcao>
+                                ) : null}
+                            </RodapeAcaoCard>
                         </CardOpcao>
                     ))}
                 </GridCenarios>
@@ -434,16 +525,21 @@ const GridCenarios = styled.div`
 `;
 
 const CardOpcao = styled.div`
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: ${({ $isAdotado }) =>
+        $isAdotado
+            ? "linear-gradient(145deg, rgba(130, 10, 209, 0.25), rgba(15, 23, 42, 0.9))"
+            : "rgba(15, 23, 42, 0.8)"};
+    border: 1px solid
+        ${({ $isAdotado }) => ($isAdotado ? "#820ad1" : "rgba(255, 255, 255, 0.08)")};
     border-radius: 12px;
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    box-shadow: ${({ $isAdotado }) => ($isAdotado ? "0 4px 20px rgba(130, 10, 209, 0.35)" : "none")};
     transition: transform 0.2s, border-color 0.2s;
     &:hover {
-        border-color: rgba(0, 179, 255, 0.3);
+        border-color: rgba(0, 179, 255, 0.4);
         transform: translateY(-2px);
     }
 `;
@@ -502,4 +598,68 @@ const DescricaoOpcao = styled.p`
     padding: 8px;
     margin: 4px 0 0 0;
     line-height: 1.4;
+`;
+
+const TopoCardDestaque = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+`;
+
+const BadgeAdotadoAtivo = styled.span`
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0f172a;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 5px 12px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35);
+`;
+
+const BotaoAdotarPrincipal = styled.button`
+    background: linear-gradient(135deg, #0284c7, #820ad1);
+    border: none;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+`;
+
+const RodapeAcaoCard = styled.div`
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: flex-end;
+`;
+
+const BotaoAdotarOpcao = styled.button`
+    width: 100%;
+    background: rgba(0, 179, 255, 0.12);
+    border: 1px solid rgba(0, 179, 255, 0.3);
+    color: #38bdf8;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: linear-gradient(135deg, #820ad1, #00b3ff);
+        color: #fff;
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(0, 179, 255, 0.3);
+    }
 `;

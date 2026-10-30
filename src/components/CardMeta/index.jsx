@@ -1,6 +1,6 @@
 import styled from "styled-components";
 import { formatCurrency } from "../../utils/currencyUtils";
-import { TAXAS_PADRAO_CATEGORIA } from "../../utils/metasCalculos";
+import { TAXAS_PADRAO_CATEGORIA, formatarPrazoMesesEAnos } from "../../utils/metasCalculos";
 
 export default function CardMeta({
     meta,
@@ -60,7 +60,7 @@ export default function CardMeta({
                             <NomeMeta>{nome}</NomeMeta>
                         )}
                         <SubtituloMeta>
-                            {padraoCat.nome} {prazoDesejadoMeses ? `• Prazo alvo: ${prazoDesejadoMeses} meses` : ""}
+                            {padraoCat.nome} {prazoDesejadoMeses ? `• Prazo alvo: ${formatarPrazoMesesEAnos(prazoDesejadoMeses).textoCompleto}` : ""}
                         </SubtituloMeta>
                     </InfoMeta>
                 </SeletorWrapper>
