@@ -53,6 +53,54 @@ export const TAXAS_PADRAO_CATEGORIA = {
 };
 
 /**
+ * Converte um número de meses em uma descrição rica contendo meses, anos e data estimada de conquista.
+ * Exemplo: 21 meses -> "Mês 21 — 1 ano e 9 meses (30/07/2028)"
+ *
+ * @param {number} totalMeses
+ * @param {Date|string} dataBase
+ * @returns {{ meses: number, anosTexto: string, dataEstimadaStr: string, mesAnoExtenso: string, textoCurto: string, textoCompleto: string }}
+ */
+export function formatarPrazoMesesEAnos(totalMeses, dataBase = new Date()) {
+    const n = Math.max(0, Math.round(Number(totalMeses) || 0));
+    const anos = Math.floor(n / 12);
+    const mesesRestantes = n % 12;
+
+    let anosTexto = "";
+    if (anos === 0) {
+        anosTexto = `${mesesRestantes} ${mesesRestantes === 1 ? "mês" : "meses"}`;
+    } else {
+        const parteAnos = `${anos} ${anos === 1 ? "ano" : "anos"}`;
+        if (mesesRestantes === 0) {
+            anosTexto = parteAnos;
+        } else {
+            anosTexto = `${parteAnos} e ${mesesRestantes} ${mesesRestantes === 1 ? "mês" : "meses"}`;
+        }
+    }
+
+    const base = dataBase instanceof Date ? dataBase : new Date(dataBase || Date.now());
+    const dataAlvo = new Date(base.getFullYear(), base.getMonth() + n, base.getDate());
+    const dia = String(dataAlvo.getDate()).padStart(2, "0");
+    const mes = String(dataAlvo.getMonth() + 1).padStart(2, "0");
+    const ano = dataAlvo.getFullYear();
+    const dataEstimadaStr = `${dia}/${mes}/${ano}`;
+
+    const mesesNomes = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+    const mesAnoExtenso = `${mesesNomes[dataAlvo.getMonth()]}/${ano}`;
+
+    return {
+        meses: n,
+        anosTexto,
+        dataEstimadaStr,
+        mesAnoExtenso,
+        textoCurto: n >= 12 ? `${n}m (${anosTexto})` : `${n} meses`,
+        textoCompleto: `Mês ${n} — ${anosTexto} (${dataEstimadaStr})`,
+    };
+}
+
+/**
  * Calcula a prestação fixa (Tabela Price) de um financiamento.
  * PMT = PV * [i * (1 + i)^n] / [(1 + i)^n - 1]
  */
@@ -319,6 +367,219 @@ export function estimarSobraRealista({
 }
 
 /**
+ * Gera a série cronológica mensal detalhada do cenário adotado (estilo tabela do Insights).
+ * Permite visualização rica mês a mês em formato planilha ou cartões.
+ */
+export function gerarLinhaDoTempoCenario({
+    cenario,
+    valorAlvo,
+    saldoInicial = 0,
+    taxaSelicMensal = 0.93,
+    dataInicio = new Date(),
+}) {
+    if (!cenario) return [];
+
+    const target = Number(valorAlvo) || 30000;
+    const iSelic = (Number(taxaSelicMensal) || 0.93) / 100;
+    const baseDate = dataInicio instanceof Date ? dataInicio : new Date(dataInicio || Date.now());
+
+    const linhas = [];
+    let saldo = Number(saldoInicial) || 0;
+
+    const mesesNomes = [
+        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+        "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+    ];
+
+    const getInfoDataMes = (mesOffset) => {
+        const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + mesOffset, 1);
+        const diaFinal = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const strData = `${String(diaFinal).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+        const mesAno = `${mesesNomes[d.getMonth()]}/${d.getFullYear()}`;
+        const anosDecorridos = Math.floor(mesOffset / 12);
+        const mesesRest = mesOffset % 12;
+        const tempoDecorrido = anosDecorridos > 0
+            ? `${anosDecorridos}a ${mesesRest}m`
+            : `${mesesRest}m`;
+
+        return { strData, mesAno, tempoDecorrido };
+    };
+
+    // Mês 0: Ponto de partida
+    const info0 = getInfoDataMes(0);
+    linhas.push({
+        numeroMes: 0,
+        dataExibicao: info0.mesAno,
+        dataCompletaStr: info0.strData,
+        tempoDecorrido: "Início",
+        aporteMes: 0,
+        rendimentoMes: 0,
+        saldoAcumulado: Number(saldo.toFixed(2)),
+        percentualMeta: Math.min(100, Math.round((saldo / target) * 100)),
+        evento: saldo > 0 ? "Saldo inicial já guardado" : "Início do planejamento",
+        ehMesConquista: saldo >= target,
+    });
+
+    if (cenario.tipo === "avista") {
+        const aporte = Number(cenario.aporteMensal) || 500;
+        const totalMeses = Math.min(240, cenario.tempoMesesMedio || 36);
+
+        for (let m = 1; m <= totalMeses; m++) {
+            const rendimento = saldo * iSelic;
+            saldo += rendimento + aporte;
+            const pct = Math.min(100, Math.round((saldo / target) * 100));
+            const ehConquista = m === totalMeses || saldo >= target;
+            const info = getInfoDataMes(m);
+
+            linhas.push({
+                numeroMes: m,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: aporte,
+                rendimentoMes: Number(rendimento.toFixed(2)),
+                saldoAcumulado: Number(saldo.toFixed(2)),
+                percentualMeta: pct,
+                evento: ehConquista ? "🎉 Meta Atingida! Compra à vista com poder de desconto" : null,
+                ehMesConquista: ehConquista,
+            });
+
+            if (saldo >= target && m >= totalMeses) break;
+        }
+    } else if (cenario.tipo === "hibrido") {
+        const aporte = Number(cenario.aporteFasePoupanca) || 500;
+        const mesesPoupando = cenario.mesesPoupando || 12;
+        const prazoFin = cenario.prazoFinanciamento || 24;
+        const parcelaFin = cenario.parcelaFinanciamento || 600;
+
+        // Fase 1: Poupança
+        for (let m = 1; m <= mesesPoupando; m++) {
+            const rendimento = saldo * iSelic;
+            saldo += rendimento + aporte;
+            const pct = Math.min(100, Math.round((saldo / target) * 100));
+            const info = getInfoDataMes(m);
+            const ehMesCompra = m === mesesPoupando;
+
+            linhas.push({
+                numeroMes: m,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: aporte,
+                rendimentoMes: Number(rendimento.toFixed(2)),
+                saldoAcumulado: Number(saldo.toFixed(2)),
+                percentualMeta: pct,
+                evento: ehMesCompra ? "🚗 Compra do Bem! Pagamento da entrada e início do financiamento leve" : "Acúmulo de Entrada (CDI)",
+                ehMesConquista: ehMesCompra,
+            });
+        }
+
+        // Fase 2: Financiamento
+        let saldoDevedor = Math.max(0, target - saldo);
+        for (let f = 1; f <= prazoFin; f++) {
+            const mTotal = mesesPoupando + f;
+            const info = getInfoDataMes(mTotal);
+            saldoDevedor = Math.max(0, saldoDevedor - (parcelaFin * 0.8));
+            const ehQuitacao = f === prazoFin;
+
+            linhas.push({
+                numeroMes: mTotal,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: parcelaFin,
+                rendimentoMes: 0,
+                saldoAcumulado: target,
+                saldoDevedor: Number(saldoDevedor.toFixed(2)),
+                percentualMeta: 100,
+                evento: ehQuitacao ? "🏆 Bem 100% Quitado sem dívidas!" : `Parcela Financiamento (${f}/${prazoFin})`,
+                ehMesConquista: ehQuitacao,
+                faseFinanciamento: true,
+            });
+        }
+    } else if (cenario.tipo === "financiamento") {
+        const mesesEntrada = cenario.mesesParaEntrada || 0;
+        const aporteEntrada = cenario.aporteParaEntrada || 500;
+        const prazo = cenario.prazoParcelas || 36;
+        const parcela = cenario.parcela || 800;
+
+        // Fase 1: Juntar entrada (se necessário)
+        for (let m = 1; m <= mesesEntrada; m++) {
+            const rendimento = saldo * iSelic;
+            saldo += rendimento + aporteEntrada;
+            const info = getInfoDataMes(m);
+            const prontaEntrada = m === mesesEntrada;
+
+            linhas.push({
+                numeroMes: m,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: aporteEntrada,
+                rendimentoMes: Number(rendimento.toFixed(2)),
+                saldoAcumulado: Number(saldo.toFixed(2)),
+                percentualMeta: Math.round((saldo / target) * 100),
+                evento: prontaEntrada ? "Entrada Completa! Contratação do Financiamento" : "Poupança para Entrada",
+                ehMesConquista: prontaEntrada,
+            });
+        }
+
+        // Fase 2: Parcelamento
+        for (let p = 1; p <= prazo; p++) {
+            const mTotal = mesesEntrada + p;
+            const info = getInfoDataMes(mTotal);
+            const ehQuitacao = p === prazo;
+
+            linhas.push({
+                numeroMes: mTotal,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: parcela,
+                rendimentoMes: 0,
+                saldoAcumulado: target,
+                percentualMeta: 100,
+                evento: p === 1
+                    ? "🚗 Aquisição Imediata do Bem com Financiamento"
+                    : ehQuitacao
+                    ? "🏆 Financiamento Totalmente Quitado!"
+                    : `Parcela Fixa (${p}/${prazo})`,
+                ehMesConquista: p === 1 || ehQuitacao,
+                faseFinanciamento: true,
+            });
+        }
+    } else if (cenario.tipo === "consorcio") {
+        const meses = cenario.meses || 36;
+        const parcela = cenario.parcela || 600;
+
+        for (let m = 1; m <= meses; m++) {
+            const info = getInfoDataMes(m);
+            const pct = Math.min(100, Math.round((m / meses) * 100));
+            const ehFim = m === meses;
+
+            linhas.push({
+                numeroMes: m,
+                dataExibicao: info.mesAno,
+                dataCompletaStr: info.strData,
+                tempoDecorrido: info.tempoDecorrido,
+                aporteMes: parcela,
+                rendimentoMes: 0,
+                saldoAcumulado: Number((parcela * m).toFixed(2)),
+                percentualMeta: pct,
+                evento: m === Math.round(meses / 2)
+                    ? "🎲 Média estimada de contemplação por lance ou sorteio"
+                    : ehFim
+                    ? "🏆 Encerramento do Grupo de Consórcio"
+                    : `Parcela Consórcio (${m}/${meses})`,
+                ehMesConquista: m === Math.round(meses / 2) || ehFim,
+            });
+        }
+    }
+
+    return linhas;
+}
+
+/**
  * Gera todos os cenários matemáticos possíveis para a meta financeira informada.
  */
 export function gerarTodosCenarios({
@@ -333,6 +594,7 @@ export function gerarTodosCenarios({
         premissas = {},
         aceitaFinanciamento = true,
         aceitaConsorcio = true,
+        cenarioAdotadoId = null,
     } = meta || {};
 
     const min = Number(valorMin) || 10000;
@@ -367,6 +629,7 @@ export function gerarTodosCenarios({
         hibrido: [],
         consorcio: [],
         recomendacaoRapida: null,
+        cenarioPrincipal: null,
     };
 
     // -------------------------------------------------------------
@@ -407,6 +670,8 @@ export function gerarTodosCenarios({
             sobraMensalEstimada: sobraReal,
         });
 
+        const prazoFormatado = formatarPrazoMesesEAnos(simMedio.meses);
+
         cenarios.aVista.push({
             id: `avista-${ritmo.id}`,
             tipo: "avista",
@@ -416,10 +681,12 @@ export function gerarTodosCenarios({
             tempoMesesMin: simMin.meses,
             tempoMesesMedio: simMedio.meses,
             tempoMesesMax: simMax.meses,
+            mesesTotalConquista: simMedio.meses,
+            prazoFormatado,
             rendimentoGanhoMedio: simMedio.rendimentoGanho,
             totalEconomizadoJuros: Number((calcularPrice({ valor: medio - jaGuardado, taxaMensalPercentual: taxaFinanciamentoMensal, meses: 36 }).jurosTotal).toFixed(2)),
             seguranca,
-            descricao: `Você guarda R$ ${aporte.toFixed(2)}/mês com rendimento aproximado de 100% do CDI (${taxaRendimentoSelic}% a.m.). Compra o valor médio (R$ ${medio.toLocaleString("pt-BR")}) em ${simMedio.meses} meses sem pagar um centavo de juros.`,
+            descricao: `Você guarda R$ ${aporte.toFixed(2)}/mês com rendimento aproximado de 100% do CDI (${taxaRendimentoSelic}% a.m.). Conquista o valor médio em ${prazoFormatado.textoCompleto} sem pagar juros.`,
         });
     });
 
@@ -458,6 +725,9 @@ export function gerarTodosCenarios({
                     sobraMensalEstimada: sobraReal,
                 });
 
+                const mesesTotal = mesesParaEntrada + nMeses;
+                const prazoFormatado = formatarPrazoMesesEAnos(mesesTotal);
+
                 cenarios.financiamento.push({
                     id: `finan-${Math.round(pctEntrada * 100)}ent-${nMeses}m`,
                     tipo: "financiamento",
@@ -466,8 +736,11 @@ export function gerarTodosCenarios({
                     valorEntrada: valorEntradaMedio,
                     valorFinanciado: valorFinanciadoMedio,
                     mesesParaJuntarEntrada: mesesParaEntrada,
+                    prazoEntradaFormatado: mesesParaEntrada > 0 ? formatarPrazoMesesEAnos(mesesParaEntrada) : null,
                     aporteParaEntrada,
                     prazoParcelas: nMeses,
+                    mesesTotalConquista: mesesTotal,
+                    prazoFormatado,
                     parcela: simPrice.parcela,
                     totalPago: valorEntradaMedio + simPrice.totalPago,
                     jurosTotal: simPrice.jurosTotal,
@@ -483,7 +756,6 @@ export function gerarTodosCenarios({
     // 3. Cenários HÍBRIDOS (Juntar entrada robusta para parcelas mínimas)
     // -------------------------------------------------------------
     if (aceitaFinanciamento) {
-        // Poupa durante 6 a 12 meses toda a sobra moderada, junta R$ X e financia o restante em prazo curto (18x a 24x)
         [6, 12].forEach((mesesPoupando) => {
             const aporte = Number((sobraReal * 0.6).toFixed(2));
             const acumuloPre = simularAcumulo({
@@ -493,7 +765,6 @@ export function gerarTodosCenarios({
                 saldoInicial: jaGuardado,
             });
 
-            // Saldo após N meses poupando
             const saldoAposNMeses = acumuloPre.evolucao.find((e) => e.mes === mesesPoupando)?.saldo || (jaGuardado + aporte * mesesPoupando);
             const entradaGerada = Math.min(saldoAposNMeses, medio * 0.7);
             const saldoRestanteFinanciar = Math.max(0, medio - entradaGerada);
@@ -511,20 +782,27 @@ export function gerarTodosCenarios({
                 sobraMensalEstimada: sobraReal,
             });
 
+            const mesesTotal = mesesPoupando + prazoCurto;
+            const prazoFormatado = formatarPrazoMesesEAnos(mesesTotal);
+            const prazoFase1Formatado = formatarPrazoMesesEAnos(mesesPoupando);
+
             cenarios.hibrido.push({
                 id: `hibrido-${mesesPoupando}m-poupando`,
                 tipo: "hibrido",
                 titulo: `Plano Híbrido: Poupar ${mesesPoupando} meses + Financiar ${prazoCurto}x`,
                 mesesPoupando,
+                prazoFase1Formatado,
                 aporteFasePoupanca: aporte,
                 entradaAlcancada: Number(entradaGerada.toFixed(2)),
                 saldoFinanciado: Number(saldoRestanteFinanciar.toFixed(2)),
                 prazoFinanciamento: prazoCurto,
+                mesesTotalConquista: mesesTotal,
+                prazoFormatado,
                 parcelaFinanciamento: simPrice.parcela,
                 jurosTotal: simPrice.jurosTotal,
                 totalPago: Number((entradaGerada + simPrice.totalPago).toFixed(2)),
                 seguranca,
-                descricao: `Você junta R$ ${aporte.toFixed(2)}/mês durante ${mesesPoupando} meses (juntando R$ ${entradaGerada.toLocaleString("pt-BR")}). Depois financia só o resto em ${prazoCurto}x leves de R$ ${simPrice.parcela.toFixed(2)}, cortando metade dos juros tradicionais.`,
+                descricao: `Você junta R$ ${aporte.toFixed(2)}/mês durante ${prazoFase1Formatado.anosTexto} (acumulando R$ ${entradaGerada.toLocaleString("pt-BR")}). Depois financia o resto em ${prazoCurto}x leves de R$ ${simPrice.parcela.toFixed(2)}, concluindo em ${prazoFormatado.textoCompleto}.`,
             });
         });
     }
@@ -547,6 +825,8 @@ export function gerarTodosCenarios({
                 sobraMensalEstimada: sobraReal,
             });
 
+            const prazoFormatado = formatarPrazoMesesEAnos(mesesCons);
+
             cenarios.consorcio.push({
                 id: `consorcio-${mesesCons}m`,
                 tipo: "consorcio",
@@ -556,6 +836,8 @@ export function gerarTodosCenarios({
                 taxaAdmTotal: simCons.taxaAdmTotal,
                 taxaAdmPercentual: taxaAdmConsorcioTotal,
                 meses: mesesCons,
+                mesesTotalConquista: mesesCons,
+                prazoFormatado,
                 seguranca,
                 estrategiaLance: jaGuardado > 0
                     ? `Você já possui R$ ${jaGuardado.toLocaleString("pt-BR")} que pode ser ofertado como lance livre para acelerar a contemplação.`
@@ -564,7 +846,7 @@ export function gerarTodosCenarios({
         });
     }
 
-    // Determinar o melhor cenário confortável custo-benefício (Recomendação Rápida Determinística)
+    // Determinar o melhor cenário confortável custo-benefício
     const todosCenarios = [
         ...cenarios.aVista,
         ...cenarios.hibrido,
@@ -574,7 +856,6 @@ export function gerarTodosCenarios({
 
     const seguros = todosCenarios.filter((c) => c.seguranca.status === "seguro");
     if (seguros.length > 0) {
-        // Ordena por menor custo total de juros e prazo razoável
         seguros.sort((a, b) => {
             const jurosA = a.jurosTotal || a.taxaAdmTotal || 0;
             const jurosB = b.jurosTotal || b.taxaAdmTotal || 0;
@@ -584,6 +865,14 @@ export function gerarTodosCenarios({
     } else {
         const moderados = todosCenarios.filter((c) => c.seguranca.status === "atencao");
         cenarios.recomendacaoRapida = moderados.length > 0 ? moderados[0] : todosCenarios[0];
+    }
+
+    // Identifica o Cenário Principal (o adotado pelo usuário, ou na falta dele a recomendação)
+    if (cenarioAdotadoId) {
+        const encontrado = todosCenarios.find((c) => c.id === cenarioAdotadoId);
+        cenarios.cenarioPrincipal = encontrado || cenarios.recomendacaoRapida;
+    } else {
+        cenarios.cenarioPrincipal = cenarios.recomendacaoRapida;
     }
 
     return cenarios;
