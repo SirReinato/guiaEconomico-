@@ -73,6 +73,12 @@ export default function ContainerGeral() {
                                     </BadgePerfilDropdown>
                                     <UserEmailDropdown>{user?.email}</UserEmailDropdown>
                                     <LinkConfigMobile
+                                        to="/metas"
+                                        onClick={fecharMenusMobile}
+                                    >
+                                        🎯 Metas Futuras
+                                    </LinkConfigMobile>
+                                    <LinkConfigMobile
                                         to="/configuracoes"
                                         onClick={fecharMenusMobile}
                                     >
@@ -110,6 +116,9 @@ export default function ContainerGeral() {
                         </StyledLink>
                         <StyledLink to="/insights">
                             {temAcessoInsights ? "🧠 Insights Financeiros" : "🔒 Insights (Restrito)"}
+                        </StyledLink>
+                        <StyledLink to="/metas">
+                            {temAcessoInsights ? "🎯 Metas Futuras" : "🔒 Metas (Restrito)"}
                         </StyledLink>
                         <StyledLink to="/configuracoes">
                             ⚙️ Configurações
@@ -200,6 +209,15 @@ export default function ContainerGeral() {
                     >
                         <BottomNavIcon>💰</BottomNavIcon>
                         <BottomNavText>Saldos</BottomNavText>
+                    </BottomNavItem>
+
+                    <BottomNavItem
+                        to="/metas"
+                        $ativo={location.pathname === "/metas"}
+                        onClick={fecharMenusMobile}
+                    >
+                        <BottomNavIcon>🎯</BottomNavIcon>
+                        <BottomNavText>Metas</BottomNavText>
                     </BottomNavItem>
                 </MobileBottomNav>
 

@@ -3,7 +3,6 @@ import styled from "styled-components";
 import { Titulos } from "../Card";
 import { useGastos } from "../../context/GastosContext";
 import { useMes } from "../../context/MesContext";
-import { parseCurrency } from "../../utils/currencyUtils";
 
 export default function ModalFaturaItau({ onClose }) {
     const { faturasItau, salvarFaturaItauMes, chaveMesAtual } = useGastos();
