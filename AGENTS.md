@@ -18,7 +18,7 @@ Considera-se "alteração estrutural" (lista não exaustiva):
 - Alterar **coleções/documentos do Firestore**, campos do modelo de dados ou chaves de `localStorage`.
 - Adicionar/remover/atualizar (major) **dependências** ou scripts do `package.json`.
 - Adicionar/alterar **variáveis de ambiente**.
-- Alterar **regras de negócio** (ciclos de fatura, perfis, responsável/reembolso, 50/30/20, reserva, Selic, metas).
+- Alterar **regras de negócio** (ciclos de fatura, perfis, responsável/reembolso, 50/30/20, reserva, Selic, metas, assinaturas, parcelamentos).
 - Alterar **permissões/autenticação**, PWA/Service Worker, deploy (Vercel) ou o webhook.
 - Adotar nova convenção de código, biblioteca de estilo, testes etc.
 
@@ -56,12 +56,14 @@ Para garantir total controle de versão, rastreabilidade e segurança do código
 - Divisão de responsabilidade de gastos: `meu`, `mozi` (100% reembolsável pela parceira) e `dividido` (50%).
 - Parcelamento automático de compras.
 - **Ajustar para dar certinho**: ferramenta de calibração exata da fatura de cada cartão por ciclo, permitindo lançar diferenças positivas ou negativas (ex: fatura real de R$ 104,25 vs R$ 100,00 lançados = ajuste de +R$ 4,25; ou R$ 95,75 = ajuste de -R$ 4,25), com calculadora automática e fixação prioritária no topo da lista de lançamentos.
+- **Assinaturas Recorrentes de Cartão**: cadastro de serviços de cobrança contínua por cartão (Netflix, Spotify, ChatGPT etc.), cobrados de forma contínua mês a mês até o usuário cancelar. Cancelamento preserva os meses passados no histórico. Visual diferenciado com badge esmeralda/ciano e contador dedicado no card da Home com acesso rápido às assinaturas de cada cartão.
+- **🚨 Apertou a Fatura (Parcelamento de Fatura)**: funcionalidade para renegociação e parcelamento da fatura quando a situação financeira aperta. Permite informar o valor da Entrada (que substitui o total de compras daquele ciclo) e as Parcelas ($X$ vezes de $R\$ Y$), ambos com divisão flexível (100% meu, 100% da mulher ou dividido 50/50 / manual). As compras originais do mês são congeladas para conferência, a entrada é fixada no topo e as parcelas são projetadas automaticamente para os próximos meses de ambos os parceiros com sincronização bidirecional.
 - Receitas/salários por mês, gastos essenciais fixos e **projeção de saldo** dos próximos meses.
 - Regra orçamentária **50/30/20** (Essencial / Desejo / Poupança).
 - **Insights financeiros** e **Reserva de Emergência** (com taxa Selic do Banco Central).
 - **Metas Futuras & Planejador IA**: simulação de aquisição de bens (carro, imóvel, viagens, etc.) com faixa de valor (min - max), comparação entre compra à vista (CDI), financiamento (Price), plano híbrido e consórcio, travas de segurança "sem aperto" e consultoria gerada via **Firebase AI Logic (Gemini)**.
 - **Captura automática de compras** via webhook (MacroDroid no Android → `/api/webhook`).
-- **Multi-perfil**: `renato` (perfil original) e `ingrid` (perfil isolado, com integrações).
+- **Multi-perfil**: `renato` (perfil original) e `ingrid` (perfil isolado, com integrações e sincronização cruzada).
 - **Interface 100% Mobile Fluid**: otimização visual completa para smartphones (320px a 768px), com cards de 2 linhas, botões de ação confortáveis, modais fluidos com suporte a safe area inset e prevenção de zoom automático.
 
 Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/permissoes.js`).
@@ -85,7 +87,7 @@ Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/pe
 | Lint | ESLint 9 flat config (`eslint.config.js`) |
 | Legado | `json-server` + `db.json` (dados antigos/seed; **não** é mais a fonte de dados) |
 
-**Não há** TypeScript ou testes automatizados. As regras do Firestore estão versionadas em `firestore.rules` na raiz do projeto com hardening multi-perfil, suporte estrito a valores positivos/negativos para ajustes de fatura e validações de domínio.
+**Não há** TypeScript ou testes automatizados. As regras do Firestore estão versionadas em `firestore.rules` na raiz do projeto com hardening multi-perfil, suporte estrito a assinaturas, acordos de parcelamento de fatura, ajustes positivos/negativos e validações de domínio.
 
 ---
 
@@ -149,9 +151,10 @@ guiaEconomico-/
 │   │   ├── MesContext.jsx     # mesReferencia (mês navegado), meses pagos (localStorage)
 │   │   ├── SaldoContext.jsx   # receitas + salários ajustados por mês (Firestore + cache localStorage)
 │   │   ├── EssencialContext.jsx # gastos essenciais fixos/recorrentes
-│   │   └── GastosContext.jsx  # gastos de cartão, ciclos, parcelas, cartões, Mozi, Itaú e ajustes de fatura
+│   │   └── GastosContext.jsx  # gastos de cartão, ciclos, parcelas, cartões, Mozi, Itaú, ajustes, assinaturas e acordos de parcelamento
 │   ├── services/              # ÚNICA camada que fala com Firestore / APIs externas
-│   │   ├── gastosService.js   # CRUD gastos, reembolso Mozi, cartões personalizados, fatura Itaú
+│   │   ├── assinaturasService.js # CRUD assinaturas recorrentes, cancelamento com preservação e reembolso parceiro
+│   │   ├── gastosService.js   # CRUD gastos, parcelamentos de fatura, reembolso Mozi/Ingrid, cartões personalizados, fatura Itaú
 │   │   ├── saldoService.js    # CRUD receitas, salários ajustados
 │   │   ├── essencial.js       # CRUD essenciais
 │   │   ├── metasService.js    # CRUD de metas futuras e persistência de plano IA por perfil
@@ -161,17 +164,17 @@ guiaEconomico-/
 │   ├── hooks/                 # Cálculos derivados (sem I/O direto)
 │   │   ├── useMetas.js                   # Gestão de metas (lista, seleção, criação, plano IA)
 │   │   ├── usePlanoMeta.js               # Conexão de meta com finanças reais e simulação de cenários
-│   │   ├── useProjecaoSaldo.js           # Projeção de saldo N meses
-│   │   ├── useResumoCartoes.js           # Resumo de faturas por ciclo
+│   │   ├── useProjecaoSaldo.js           # Projeção de saldo N meses considerando assinaturas e parcelas de faturas
+│   │   ├── useResumoCartoes.js           # Resumo de faturas por ciclo com métricas de assinaturas
 │   │   ├── useResumoComparativoGrafico.js# Dados 50/30/20
 │   │   ├── useResumoEssencial.js         # Resumo de essenciais (MAPA_NOMES_ESSENCIAIS)
-│   │   ├── useResumoEvitaveis.js         # Gastos evitáveis
+│   │   ├── useResumoEvitaveis.js         # Gastos evitáveis e assinaturas de lazer
 │   │   ├── useResumoFinanceiro.js        # Resumo geral
 │   │   └── useShowModals.js              # Controle de abertura de modais
 │   ├── pages/                 # Uma pasta por página, arquivo index.jsx
 │   │   ├── Outlet/            # Layout mestre (ContainerGeral): sidebar desktop, menu/bottom-nav mobile, badge de perfil
-│   │   ├── Home/              # Dashboard principal
-│   │   ├── Cartoes/           # Faturas por cartão e ciclo com ajuste inteligente e visual mobile fluido
+│   │   ├── Home/              # Dashboard principal (com contagem de assinaturas no Card Cartões e clique direto por cartão)
+│   │   ├── Cartoes/           # Faturas por cartão e ciclo com ajuste inteligente, assinaturas neon, modal Apertou a Fatura e congelamento de compras
 │   │   ├── Saldos/            # Receitas/saldos (também atende /comparativo) com cartões mobile
 │   │   ├── Insights/          # Insights + Reserva de Emergência (com taxa Selic oficial)
 │   │   ├── Metas/             # Metas Futuras & Planejador IA (simulações, travas e plano com IA)
@@ -182,8 +185,8 @@ guiaEconomico-/
 │   │   ├── Card/, CardComparativo/, CardGastosAbas/, CardSaldoGrafico/
 │   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/, PlanoPrincipalDetalhado/
 │   │   ├── ListaGanhosMozi/, ListaProximosMeses/, Logo/, AcessoRestritoInsights/
-│   │   └── Modal*/ (AjusteFaturaCartao, AjusteReserva, EditarGasto, EditarReceita, FaturaItau,
-│   │                GastoEssencial, GerenciarCartoes, NovoGasto, Receita)
+│   │   └── Modal*/ (AjusteFaturaCartao, AjusteReserva, ApertouFatura, AssinaturasCartao, EditarGasto, EditarReceita,
+│   │                FaturaItau, GastoEssencial, GerenciarCartoes, NovoGasto, Receita)
 │   ├── styles/base/           # theme.js (cores/espacamentos/tipografia) e GlobalStyle.js
 │   └── utils/
 │       ├── permissoes.js      # E-mails autorizados, getPerfilUsuario, isEmailAutorizado, isRenato, isIngrid
@@ -229,8 +232,8 @@ Camadas (respeite a direção das dependências):
 
 | Path | Página | Observação |
 |---|---|---|
-| `/` | Home | Dashboard |
-| `/gastos-cartao` | Cartoes | Faturas por ciclo e Ajuste para Dar Certinho |
+| `/` | Home | Dashboard com atalho direto de assinaturas no Card Cartões |
+| `/gastos-cartao` | Cartoes | Faturas por ciclo, Ajuste para Dar Certinho, Assinaturas e "Apertou a Fatura" |
 | `/saldos` e `/comparativo` | Saldos | Mesma página |
 | `/insights` | Insights | Exibe `AcessoRestritoInsights` se sem permissão; excluída do `navigateFallback` do PWA |
 | `/metas` | Metas | Metas Futuras & Planejador IA; restrita por `temAcessoInsights`; 5º item na bottom nav |
@@ -247,8 +250,9 @@ Coleções por perfil (sufixo `_ingrid` para o perfil Ingrid):
 
 | Recurso | Renato | Ingrid | Service |
 |---|---|---|---|
-| Gastos de cartão | `gastos` | `gastos_ingrid` | gastosService |
-| Receitas / saldo | `saldo` | `saldo_ingrid` | saldoService |
+| Gastos de cartão | `gastos` | `gastos_ingrid` | gastosService.js |
+| Assinaturas de cartão | `assinaturas` | `assinaturas_ingrid` | assinaturasService.js |
+| Receitas / saldo | `saldo` | `saldo_ingrid` | saldoService.js |
 | Gastos essenciais | `essenciais` | `essenciais_ingrid` | essencial.js |
 | Metas futuras | `metas` | `metas_ingrid` | metasService.js |
 
@@ -257,9 +261,58 @@ Documentos na coleção `configuracoes`:
 | Documento | Conteúdo |
 |---|---|
 | `configuracoes/cartoes_renato`, `configuracoes/cartoes_ingrid` | Lista de cartões personalizados |
+| `configuracoes/parcelamentos_fatura_renato`, `configuracoes/parcelamentos_fatura_ingrid` | Acordos ativos de renegociação/parcelamento de fatura |
 | `configuracoes/fatura_itau_ingrid` | Mapa `{ "YYYY-MM": valor }` da fatura Itaú (Ingrid) |
 | `configuracoes/salarios_ajustados`, `configuracoes/salarios_ingrid` | Salários ajustados por mês |
 | `configuracoes/reserva`, `configuracoes/reserva_ingrid` | Config da reserva + `aportesConfirmados` |
+
+### Formato de uma assinatura (`assinaturas` / `assinaturas_ingrid`)
+
+```js
+{
+  descricao: "Netflix",
+  valor: 55.90,
+  cartao: "nubank",
+  categoria: "Serviços",
+  tipoGasto: "Desejo", // "Essencial" | "Desejo"
+  responsavel: "meu",  // "meu" | "mozi" | "dividido"
+  diaCobranca: 15,     // 1 a 31
+  mesInicio: "2026-10", // YYYY-MM
+  status: "ativa",     // "ativa" | "cancelada"
+  mesCancelamento: null, // "YYYY-MM" quando cancelada
+  criadoEm: ISOString,
+  atualizadoEm: ISOString
+}
+```
+
+### Formato de um acordo de parcelamento de fatura (`configuracoes/parcelamentos_fatura_*`)
+
+```js
+{
+  "cartao_YYYY-MM": {
+    id: "cartao_YYYY-MM",
+    cartao: "nubank",
+    mesReferencia: "2026-10",
+    entrada: {
+      valorTotal: 868.23,
+      tipoDivisao: "dividido", // "meu" | "mozi" | "dividido"
+      modoDivisao: "personalizado", // "cinquenta" | "personalizado"
+      valorMeu: 434.12,
+      valorMozi: 434.11
+    },
+    parcelas: {
+      qtd: 8,
+      valorParcelaTotal: 942.21,
+      tipoDivisao: "meu", // "meu" | "mozi" | "dividido"
+      modoDivisao: "cinquenta",
+      valorMeu: 942.21,
+      valorMozi: 0
+    },
+    criadoEm: ISOString,
+    atualizadoEm: ISOString
+  }
+}
+```
 
 ### Formato de uma meta (`metas` / `metas_ingrid`)
 
@@ -334,12 +387,25 @@ Documentos na coleção `configuracoes`:
    - Modos de preenchimento: Calculadora reversa (o usuário apenas informa quanto deu no app do banco e o sistema calcula a diferença exata) ou inserção direta com toggle de sinal (+ / -).
    - **Fixação no topo**: Qualquer lançamento com `origem === "ajuste_fatura"` é automaticamente fixado no topo da lista de lançamentos em `Cartoes/index.jsx`, acompanhado de card com visual neon exclusivo e botão direto de reajuste.
    - Limite de 1 ajuste ativo por cartão por ciclo; salvar com valor 0 remove automaticamente o ajuste existente.
+11. **Assinaturas Recorrentes no Cartão** (`src/services/assinaturasService.js`, `GastosContext.jsx`, `ModalNovoGasto`, `ModalAssinaturasCartao`):
+   - Registro de serviços de cobrança contínua por cartão de crédito (Netflix, Spotify, ChatGPT etc.).
+   - A cobrança é injetada dinamicamente a cada ciclo mensal desde `mesInicio` até o ciclo atual, sem necessidade de recadastrar mês a mês.
+   - Ao cancelar uma assinatura: o cancelamento define `status: "cancelada"` e `mesCancelamento: mesReferencia`, cessando as cobranças do mês vigente em diante, mas **preservando o histórico nos meses passados**. Também há opção de exclusão definitiva que remove todos os vestígios.
+   - Visual exclusivo: itens de assinatura recebem badge esmeralda/ciano neon `🔄 Assinatura` e botão de gerenciamento rápido.
+   - No Card Cartões da Home: contagem de assinaturas por cartão na lista contida, onde clicar na linha do cartão abre o modal de assinaturas do próprio cartão.
+12. **🚨 Apertou a Fatura (Parcelamento de Fatura)** (`src/components/ModalApertouFatura`, `GastosContext.jsx`, `gastosService.js`):
+   - Ativado pelo botão de emergência na tela de Cartões para parcelar uma fatura apertada.
+   - **Entrada Substitutiva**: O valor da entrada substitui o montante das compras originais daquele ciclo na fatura. O usuário define o valor da entrada e sua divisão (100% Meu, 100% Mozi, ou Dividido em 50/50 / personalizado).
+   - **Parcelas Futuras ($X$ vezes de $R\$ Y$)**: O usuário apenas informa a quantidade de parcelas e o valor de cada parcela (sem necessidade de calcular o total financiado com juros), bem como a divisão dessas parcelas (Meu, Mozi, Dividido 50/50 / personalizado).
+   - **Fixação e Congelamento**: No mês do acordo, as compras originais daquele cartão ficam visíveis com tag `❄️ Congelado por acordo de fatura` e não somam no total da fatura. A Entrada é fixada no topo da lista (em 1 linha se 100% de um, ou em 2 linhas separadas e explícitas se dividida: a parte dele e a parte da mulher).
+   - **Projeção Futura e Sincronização Bidirecional**: As parcelas futuras ($1/N$ a $N/N$) são gravadas como lançamentos de cartão com `origem: "parcelamento_fatura"` para os próximos $N$ meses. Se a parceira (Ingrid) parcelar a fatura de um cartão dela dividindo com o Renato, a fatura dos próximos meses do Renato reconhece e inclui a parcela correspondente automaticamente.
+   - Permite desfazer o acordo a qualquer momento, restaurando instantaneamente as compras originais e cancelando as parcelas futuras geradas.
 
 ---
 
 ## 9. Convenções de código
 
-- **Idioma**: nomes de variáveis, funções, arquivos, comentários e UI em **português** (ex.: `adicionarMetaAPI`, `gerarTodosCenarios`). Mantenha o padrão.
+- **Idioma**: nomes de variáveis, funções, arquivos, comentários e UI em **português** (ex.: `adicionarMetaAPI`, `gerarTodosCenarios`, `salvarParcelamentoFaturaAPI`). Mantenha o padrão.
 - Componentes/páginas: pasta em PascalCase com `index.jsx`; `export default function Nome()`.
 - **styled-components no mesmo arquivo** do componente, geralmente no final; props transitórias com `$` (ex.: `$ativo`, `$isIngrid`, `$cor`). Use cores de `theme.colors` quando possível. Visual: tema escuro "neon" (roxo `#820ad1`, azul `#00b3ff`; rosa `#f472b6` para Ingrid).
 - Contexts exportam `XProvider` e `useX()` (com `// eslint-disable-next-line react-refresh/only-export-components`).
@@ -390,3 +456,4 @@ Documentos na coleção `configuracoes`:
 | 2026-10-30 | Criação e versionamento das regras de segurança completas do Cloud Firestore (`firestore.rules`), implementando modelo de autorização RBAC multi-perfil (Renato, Ingrid e Webhook Bot), validações de domínio estritas contra DoS/Update Bypass e bloqueio padrão default deny. |
 | 2026-10-30 | Implementação do **Plano de Segurança Completo**: hardening do webhook bancário com fail-safe defaults, mitigação de Timing Attacks (`crypto.timingSafeEqual`) e sanitização de payloads; configuração de cabeçalhos HTTP estritos e Content Security Policy (CSP) no `vercel.json`; utilitários de sanitização e validação de inputs (`securityUtils.js`); criação do documento de referência `SECURITY.md` e configuração do `firebase.json`. |
 | 2026-10-30 | Implementação do recurso **"Ajustar para dar certinho"** em Gastos por Cartão: criação do `ModalAjusteFaturaCartao` com calculadora reversa inteligente (ou valor direto com sinal + / -), fixação de itens de ajuste no topo de qualquer lista de lançamentos com destaque visual neon e persistência segura no Firestore via `origem: "ajuste_fatura"`. Reforma completa de responsividade mobile (320px-768px): layout em 2 linhas fluidas para lançamentos de cartão, visão em cards para receitas em Saldos, modais fluidos com suporte a safe area inset e contenção de overflow global. |
+| 2026-10-31 | Implementação das funcionalidades de **Assinaturas Recorrentes no Cartão** e **"Apertou a Fatura" (Parcelamento de Fatura)**: criação do service `assinaturasService.js`, novas coleções Firestore `assinaturas` e `assinaturas_ingrid` com RBAC estrito e regras no `firestore.rules`, modais `ModalAssinaturasCartao` e `ModalApertouFatura`, aba dedicada de assinatura no `ModalNovoGasto`, contador com atalho na Home e congelamento/substituição de faturas por Entrada com projeção direta de parcelas futuras e sincronização mútua entre Renato e Ingrid. |

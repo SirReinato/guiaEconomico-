@@ -1,6 +1,6 @@
 # 📊 Guia Econômico
 
-O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e inteligente, desenvolvido com foco na gestão prática de despesas mensais, acompanhamento de faturas de cartão de crédito por ciclo de fechamento, regra orçamentária **50/30/20**, projeção de fluxo de caixa futuro, **simulação de metas futuras com IA** e **captura automática de compras em tempo real via Webhook**.
+O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e inteligente, desenvolvido com foco na gestão prática de despesas mensais, acompanhamento de faturas de cartão de crédito por ciclo de fechamento, **assinaturas recorrentes**, **acordos de parcelamento de fatura ("Apertou a Fatura")**, regra orçamentária **50/30/20**, projeção de fluxo de caixa futuro, **simulação de metas futuras com IA** e **captura automática de compras em tempo real via Webhook**.
 
 ---
 
@@ -25,6 +25,17 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 
 ### 1. 💳 Gestão Inteligente de Cartões de Crédito
 - **Ciclos de Fatura Reais**: Separação automática dos gastos por ciclo (*Anterior*, *Atual* e *Próximo*) com base na data de fechamento real de cada banco (ex: Nubank dia 30, Banco do Brasil dia 27).
+- **🔄 Assinaturas Recorrentes no Cartão**:
+  - Cadastro de assinaturas (Netflix, Spotify, ChatGPT etc.) com seleção do cartão e dia de cobrança.
+  - A cobrança é gerada dinamicamente mês a mês até ser cancelada.
+  - Cancelamento preserva os meses passados no histórico para auditoria precisa.
+  - Linhas com destaque visual em esmeralda/ciano neon e contador de assinaturas por cartão na Home com atalho direto.
+- **🚨 Apertou a Fatura (Acordo de Parcelamento)**:
+  - Ferramenta de emergência para quando a fatura pesar no orçamento.
+  - **Entrada Substitutiva**: Substitui o total de compras daquele ciclo pelo valor de entrada negociado. Permite divisão personalizada (100% Meu, 100% Mozi, ou Dividido 50/50 / valores customizados).
+  - **Parcelas Futuras ($X$ vezes de $R\$ Y$)**: Sem precisar calcular totais com juros na mão, define quantidade e valor da parcela, com projeção automática nos próximos meses e divisão para cada parceiro.
+  - **Congelamento Seguro**: As compras do mês do acordo permanecem visíveis para conferência com etiqueta de congelamento, sem duplicar o valor da fatura. A entrada fica destacada no topo.
+  - **Sincronização Bidirecional**: Parcelamentos feitos pela parceira (inclusive no Itaú) divididos com o Renato refletem automaticamente nos próximos meses dele.
 - **🎯 Ajustar para Dar Certinho (Calibração de Fatura)**: Ferramenta ágil para bater o valor exato da fatura do aplicativo do banco quando houver pequenas divergências manuais ou de IOF/taxas. Permite informar o valor final real (calculando a diferença automaticamente) ou o valor direto de ajuste com sinal positivo + ou negativo -. O lançamento é fixado com destaque visual e prioridade no **topo da lista** para fácil conferência.
 - **Divisão de Responsabilidade**: Permite classificar cada despesa como:
   - 👤 **Meu**: Gasto próprio individual.
@@ -44,7 +55,7 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 
 ### 3. 📈 Regra Orçamentária 50/30/20 & Projeções
 - **Gráfico Comparativo**: Compara a distribuição financeira atual contra a meta ideal (50% Essenciais, 30% Desejos, 20% Poupança/Investimentos), com indicação visual por cores (verde/vermelho).
-- **Projeção de Saldo (Próximos Meses)**: Estimativa de saldo para os próximos 3 meses considerando salário recorrente, gastos fixos essenciais e parcelas futuras de cartão.
+- **Projeção de Saldo (Próximos Meses)**: Estimativa de saldo para os próximos 3 meses considerando salário recorrente, gastos fixos essenciais, assinaturas ativas e parcelas de faturas renegociadas.
 
 ### 4. 🎯 Metas Futuras & Planejador com IA
 - Cadastro de bens de médio e longo prazo (ex: carro entre R$ 30 mil e R$ 40 mil).
@@ -59,17 +70,15 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 ### 5. 📱 Experiência Mobile Totalmente Responsiva & PWA
 - **Layout Fluido & Harmônico**: Interface calibrada para qualquer tamanho de tela (320px a desktop), eliminando rolagem horizontal acidental (overflow-x: hidden) e truncamento de textos.
 - **Cards Dinâmicos em Mobile**: Lançamentos de cartão e tabelas de saldos e receitas transformam-se automaticamente em cards compactos de 2 linhas nos smartphones para leitura rápida.
-- **Modais Adaptados e Bottom Navigation Ergônomica**: Modais com altura dinâmica (max-height: 90dvh), suporte a safe-area em iOS/Android e fechamento amigável por toque no fundo escurecido.
+- **Modais Adaptados e Bottom Navigation Ergonômica**: Modais com altura dinâmica (max-height: 90dvh), suporte a safe-area em iOS/Android e fechamento amigável por toque no fundo escurecido.
 
-### 5. 🔒 Segurança e Privacidade Total (Plano de Segurança Completo)
+### 6. 🔒 Segurança e Privacidade Total (Plano de Segurança Completo)
 - **Autenticação e RBAC Estrito**: Acesso restrito via Google Authentication e controle granular por perfil (`renato` e `ingrid`).
 - **Cloud Firestore Security Rules (`firestore.rules`)**: Regras no servidor com modelo *Default Deny*, validação de schemas em criação e atualização, isolamento de coleções e proteção de campos imutáveis (`criadoEm`). Deploy com `firebase deploy --only firestore:rules`.
 - **Webhook Blindado**: Endpoint `/api/webhook` com *fail-safe defaults* (rejeita requisições se `WEBHOOK_SECRET` não estiver configurado), mitigação contra *Timing Attacks* com `crypto.timingSafeEqual` e sanitização de payloads contra DoS.
 - **Cabeçalhos HTTP Defensivos & Content Security Policy (CSP)**: `vercel.json` configurado com CSP restrito, `X-Frame-Options: DENY` (anti-clickjacking), `X-Content-Type-Options: nosniff` (anti-MIME sniffing) e HSTS com preload.
 - **Higienização de Inputs (`securityUtils.js`)**: Prevenção ativa contra XSS e corrupção de tipos numéricos.
 - Consulte o documento completo em [`SECURITY.md`](./SECURITY.md).
-
-
 
 ---
 
@@ -91,6 +100,8 @@ guia-economico/
 │   │   ├── GraficoEvolucaoMeta/   # Gráfico de acúmulo patrimonial vs meta
 │   │   ├── ModalNovaMeta/         # Modal de cadastro e edição de metas
 │   │   ├── ModalAjusteFaturaCartao/ # Modal de calibração exata de fatura (+ / -)
+│   │   ├── ModalAssinaturasCartao/ # Gerenciador de assinaturas recorrentes por cartão
+│   │   ├── ModalApertouFatura/    # Acordo de emergência para parcelar fatura do cartão
 │   │   ├── PlanoIA/               # Painel de consultoria e recomendações da IA
 │   │   └── ...                    # Outros componentes e modais
 │   ├── config/
@@ -98,100 +109,9 @@ guia-economico/
 │   ├── context/                   # Contextos de estado global (Auth, Gastos, Saldo, Essencial, Mes)
 │   ├── hooks/                     # Custom hooks (useMetas, usePlanoMeta, useProjecaoSaldo, etc.)
 │   ├── pages/                     # Páginas (Home, Cartoes, Saldos, Insights, Metas, Login)
-│   ├── routes/
-│   │   └── AppRoutes.jsx          # Definição de rotas com React Router
-│   ├── services/                  # Camada de comunicação com Firestore e APIs externas
-│   ├── styles/                    # Temas e estilos globais (Theme & GlobalStyle)
-│   └── utils/                     # Formatadores monetários, cálculos matemáticos e parsers
-├── vercel.json                    # Configuração de rewrites SPA para a Vercel
-├── package.json
-└── vite.config.js
+│   ├── services/                  # Comunicação com Firestore e APIs externas
+│   ├── styles/                    # Temas Dark Neon e estilos globais
+│   └── utils/                     # Motores de cálculo, permissões e sanitização
+├── firestore.rules                # Regras de segurança RBAC no Cloud Firestore
+└── vercel.json                    # Rewrite SPA e cabeçalhos de segurança HTTP
 ```
-
----
-
-## 🛠️ Scripts Disponíveis
-
-| Comando | Descrição |
-|---|---|
-| `npm run dev` | Inicia o servidor de desenvolvimento Vite localmente (`localhost:5173`) |
-| `npm run build` | Compila a versão otimizada para produção |
-| `npm run preview` | Pré-visualiza localmente a build de produção |
-| `npm run lint` | Executa o ESLint para validação de padrões de código |
-| `npm run seed:firebase` | Importa os dados de amostra do `db.json` direto para o Firestore |
-
----
-
-## ⚙️ Variáveis de Ambiente (.env)
-
-Crie um arquivo `.env.local` na raiz do projeto (ou adicione nas configurações da Vercel) com as seguintes chaves:
-
-```env
-# Credenciais do Google Firebase (Console do Firebase -> Configurações do Projeto)
-VITE_FIREBASE_API_KEY=AIzaSy...
-VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=seu-projeto
-VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789...
-VITE_FIREBASE_APP_ID=1:123456789:web:abcdef...
-
-# Restrição de Acesso (Opcional: define qual e-mail tem permissão de login)
-VITE_ALLOWED_EMAIL=seu-email@gmail.com
-
-# Chave de Segurança do Webhook Serverless
-WEBHOOK_SECRET=sua_chave_secreta_aqui
-```
-
----
-
-## 📱 Configuração da Automação no Celular (MacroDroid)
-
-Para cadastrar compras automaticamente quando passar o cartão:
-
-1. Instale o app **MacroDroid** (Android) pela Google Play Store.
-2. Crie uma nova Macro:
-   - **Gatilho (Trigger)**: `Notificação` ➡️ `Notificação recebida` ➡️ Marque **Nubank** e **Banco do Brasil**.
-   - **Ação (Action)**: `Conectividade` ➡️ `Requisição HTTP`:
-     - **Método**: `POST`
-     - **URL**: `https://SUA-URL-VERCEL.vercel.app/api/webhook?token=SEU_WEBHOOK_SECRET`
-     - **Content Type**: `application/json`
-     - **Corpo (JSON)**:
-       ```json
-       {
-         "banco": "[notif_app_name]",
-         "texto": "[notif_text]",
-         "titulo": "[notif_title]"
-       }
-       ```
-3. Salve a macro. Toda compra aprovada cairá instantaneamente no seu painel!
-
----
-
-## 💻 Instruções para Rodar Localmente
-
-1. **Clone o repositório:**
-   ```bash
-   git clone <URL_DO_REPOSITORIO>
-   cd guiaEconomico-
-   ```
-
-2. **Instale as dependências:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure o `.env.local`** com as credenciais do seu Firebase.
-
-4. **Inicie a aplicação:**
-   ```bash
-   npm run dev
-   ```
-
-5. **Acesse no navegador:**
-   ```text
-   http://localhost:5173
-   ```
-
----
-
-Desenvolvido por **SirReinato** 🚀

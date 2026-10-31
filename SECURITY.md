@@ -15,7 +15,7 @@ O Guia Econômico adota as melhores práticas de cibersegurança e engenharia de
    - *API / Webhook*: Comparação em tempo constante contra Timing Attacks, fail-safe defaults e sanitização.
    - *Banco de Dados (Firestore)*: Regras de segurança no servidor com checagem de identidade e validação de schema.
 3. **Padrão de Bloqueio Seguro (Fail-Safe Defaults)**: Por padrão, todo acesso não mapeado é explicitamente rejeitado (`deny all`). Na ausência de variáveis de ambiente críticas (ex.: `WEBHOOK_SECRET`), o sistema falha fechado (HTTP 500) em vez de permitir requisições sem credenciais.
-4. **Isolamento Completo entre Perfis (Multi-Tenant Segregation)**: Separação física e lógica de coleções entre os perfis `renato` e `ingrid`.
+4. **Isolamento Completo entre Perfis (Multi-Tenant Segregation)**: Separação física e lógica de coleções entre os perfis `renato` e `ingrid`, com cruzamento autorizado estritamente para itens compartilhados/reembolsos e parcelamentos.
 
 ---
 
@@ -30,7 +30,9 @@ O Guia Econômico opera com autenticação Google Firebase Auth e restringe o ac
 | Recurso / Coleção | Perfil Renato | Perfil Ingrid | Webhook Bot | Não Autorizado |
 |---|---|---|---|---|
 | `gastos` (cartões Renato) | **CRUD Completo** | **Leitura Apenas** (itens `mozi`/`dividido`) | **Create (Append)** | ❌ Negado |
-| `gastos_ingrid` (cartões Ingrid) | ❌ Negado | **CRUD Completo** | ❌ Negado | ❌ Negado |
+| `gastos_ingrid` (cartões Ingrid) | **Leitura Apenas** (reembolsos e parcelas) | **CRUD Completo** | ❌ Negado | ❌ Negado |
+| `assinaturas` (cartões Renato) | **CRUD Completo** | **Leitura Apenas** (itens `mozi`/`dividido`) | ❌ Negado | ❌ Negado |
+| `assinaturas_ingrid` (cartões Ingrid) | ❌ Negado | **CRUD Completo** | ❌ Negado | ❌ Negado |
 | `saldo` (receitas Renato) | **CRUD Completo** | ❌ Negado | ❌ Negado | ❌ Negado |
 | `saldo_ingrid` (receitas Ingrid) | ❌ Negado | **CRUD Completo** | ❌ Negado | ❌ Negado |
 | `essenciais` (fixos Renato) | **CRUD Completo** | ❌ Negado | ❌ Negado | ❌ Negado |
@@ -39,6 +41,8 @@ O Guia Econômico opera com autenticação Google Firebase Auth e restringe o ac
 | `metas_ingrid` (metas Ingrid) | ❌ Negado | **CRUD Completo** | ❌ Negado | ❌ Negado |
 | `configuracoes/cartoes_renato` | **Leitura / Escrita** | ❌ Negado | ❌ Negado | ❌ Negado |
 | `configuracoes/cartoes_ingrid` | ❌ Negado | **Leitura / Escrita** | ❌ Negado | ❌ Negado |
+| `configuracoes/parcelamentos_fatura_renato` | **Leitura / Escrita** | **Leitura Apenas** | ❌ Negado | ❌ Negado |
+| `configuracoes/parcelamentos_fatura_ingrid` | **Leitura Apenas** | **Leitura / Escrita** | ❌ Negado | ❌ Negado |
 | `configuracoes/salarios_ajustados` | **Leitura / Escrita** | ❌ Negado | ❌ Negado | ❌ Negado |
 | `configuracoes/salarios_ingrid` | ❌ Negado | **Leitura / Escrita** | ❌ Negado | ❌ Negado |
 | `configuracoes/reserva` | **Leitura / Escrita** | ❌ Negado | ❌ Negado | ❌ Negado |
@@ -78,9 +82,10 @@ As regras são versionadas no repositório (`firestore.rules`) e referenciadas e
 - **Versão**: `rules_version = '2';`
 - **Validação de Autenticação**: Todas as requisições requerem `request.auth != null` e `request.auth.token.email != null`.
 - **Validação Estrutural de Documentos**:
-  - `valor`: Tipo numérico obrigatório, maior ou igual a 0, com teto máximo razoável.
+  - `valor`: Tipo numérico obrigatório, maior ou igual a 0 (ou com suporte a negativos quando explicitamente marcado como `origem: "ajuste_fatura"`).
   - `categoria`, `responsavel`: Valores validados contra listas de opções válidas quando aplicável.
   - Campos de texto não podem ultrapassar limites seguros para evitar sobrecarga.
+  - Imutabilidade do campo `criadoEm` garantida tanto em gastos quanto em assinaturas.
 - **Comando para Deploy das Regras**:
   ```bash
   firebase deploy --only firestore:rules
