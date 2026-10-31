@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { useState } from "react";
 import Card from "../../components/Card";
 import GraficoComparativo from "../../components/CardComparativo";
 import { CardSaldoGrafico } from "../../components/CardSaldoGrafico";
@@ -9,6 +10,7 @@ import { useResumoEssenciais } from "../../hooks/useResumoEssencial";
 import ModalEssencial from "../../components/ModalGastoEssencial";
 import ModalReceita from "../../components/ModalReceita";
 import ModalNovoGasto from "../../components/ModalNovoGasto";
+import ModalAssinaturasCartao from "../../components/ModalAssinaturasCartao";
 import { useShowModals } from "../../hooks/useShowModals";
 import { useResumoEvitaveis } from "../../hooks/useResumoEvitaveis";
 import ListaProximosMeses from "../../components/ListaProximosMeses";
@@ -26,7 +28,12 @@ export default function Home() {
         valoresEvitaveis,
     } = useResumoEvitaveis();
     const { nomes, valores } = useResumoEssenciais();
-    const { nomeCartao, valorPorCartao, valorTotal } = useResumoCartoes();
+    const {
+        nomeCartao,
+        valorPorCartao,
+        valorTotal,
+        cartoesDetalhes = [],
+    } = useResumoCartoes();
 
     const {
         showModalGasto,
@@ -39,6 +46,11 @@ export default function Home() {
         adicionarReceita,
         adicionarEssencial,
     } = useShowModals();
+
+    const [modalAssinaturasAberto, setModalAssinaturasAberto] = useState(false);
+    const [cartaoSelecionadoAssinatura, setCartaoSelecionadoAssinatura] = useState(null);
+    const [abaInicialModalGasto, setAbaInicialModalGasto] = useState("gasto");
+    const [cartaoPadraoModalGasto, setCartaoPadraoModalGasto] = useState(null);
 
     const { saldoLiquido, totalGeralGastos } = useResumoFinanceiro();
     const saldoNum = parseFloat(saldoLiquido) || 0;
@@ -89,6 +101,31 @@ export default function Home() {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     })}`;
+
+    // Badges de assinaturas para cada linha de cartão
+    const badgesLinhasCartoes = cartoesDetalhes.map((c) =>
+        c.qtdAssinaturas > 0 ? `🔄 ${c.qtdAssinaturas}` : null
+    );
+
+    const handleCliqueLinhaCartao = (index) => {
+        const item = cartoesDetalhes[index];
+        if (item) {
+            setCartaoSelecionadoAssinatura(item.nome || item.id);
+            setModalAssinaturasAberto(true);
+        }
+    };
+
+    const handleAbrirNovoGastoOuAssinatura = () => {
+        setAbaInicialModalGasto("gasto");
+        setCartaoPadraoModalGasto(null);
+        setShowModalGasto(true);
+    };
+
+    const handleAbrirNovaAssinaturaDeCartao = (cartao) => {
+        setAbaInicialModalGasto("assinatura");
+        setCartaoPadraoModalGasto(cartao);
+        setShowModalGasto(true);
+    };
 
     return (
         <ContainerGeralHome>
@@ -142,7 +179,9 @@ export default function Home() {
                     destaque={valorTotal}
                     textTitulo={nomeCartao}
                     textDescricao={valorPorCartao}
-                    onClick={() => setShowModalGasto(true)}
+                    badgesLinhas={badgesLinhasCartoes}
+                    onLinhaClick={handleCliqueLinhaCartao}
+                    onClick={handleAbrirNovoGastoOuAssinatura}
                 />
                 <Card
                     $bgAlert
@@ -188,8 +227,17 @@ export default function Home() {
 
             {showModalGasto && (
                 <ModalNovoGasto
+                    abaInicial={abaInicialModalGasto}
+                    cartaoPadrao={cartaoPadraoModalGasto}
                     onClose={() => setShowModalGasto(false)}
                     onSubmit={adicionarGasto}
+                />
+            )}
+            {modalAssinaturasAberto && (
+                <ModalAssinaturasCartao
+                    cartaoFiltro={cartaoSelecionadoAssinatura}
+                    onClose={() => setModalAssinaturasAberto(false)}
+                    onAbrirNovaAssinatura={handleAbrirNovaAssinaturaDeCartao}
                 />
             )}
             {showModalSaldo && (

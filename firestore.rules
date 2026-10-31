@@ -16,10 +16,31 @@ rules_version = '2';
 //   - tipo: string (required, 1-50 chars) - Classificação orçamentária (Essencial, Desejo, etc.)
 //   - responsavel: string (required, ['meu', 'mozi', 'dividido']) - Responsável pelo pagamento
 //   - descricao: string (optional, 0-300 chars) - Estabelecimento / descrição do gasto
-//   - origem: string (optional, 0-80 chars) - Origem da entrada (ex: 'webhook_notificacao')
+//   - origem: string (optional, 0-80 chars) - Origem da entrada (ex: 'webhook_notificacao', 'ajuste_fatura')
 //   - origemCaptura: string (optional, 0-80 chars) - Metadados de captura via webhook
 //   - parcela: string (optional, 0-30 chars) - Rótulo da parcela (ex: '1/3')
 //   - parcelas: string or int (optional) - Quantidade total de parcelas
+//   - parcelamentoId: string (optional, 0-80 chars) - ID do acordo de parcelamento associado ('Apertou a Fatura')
+//   - congeladoPorParcelamento: bool (optional) - Flag indicando se o lançamento original está congelado por acordo
+//   - idAssinatura: string (optional, 0-80 chars) - ID da assinatura recorrente originadora
+//   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
+//   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
+//   - id: string (optional, 0-60 chars) - ID de documento no cliente
+//
+// Collection: assinaturas (Perfil Renato) & assinaturas_ingrid (Perfil Ingrid)
+// Document ID: Auto-generated Firestore ID
+// Fields:
+//   - nome: string (required, 1-120 chars) - Nome do serviço / assinatura fixa recorrente
+//   - valor: number (required, positive, < 100M) - Valor da recorrência em BRL
+//   - cartao: string (required, 1-80 chars) - Nome do cartão cobrado
+//   - categoria: string (required, 1-80 chars) - Categoria orçamentária
+//   - tipo: string (required, 1-50 chars) - Classificação (Essencial, Desejo, etc.)
+//   - responsavel: string (required, ['meu', 'mozi', 'dividido']) - Responsável pelo pagamento
+//   - dataInicio: string (required, format 'YYYY-MM-DD') - Data inicial da assinatura
+//   - inicioCiclo: string (required, format 'YYYY-MM') - Primeiro ciclo contábil de vigência
+//   - ativa: bool (required) - Status ativo da assinatura
+//   - canceladaAPartirDe: string or null (optional, format 'YYYY-MM') - Ciclo a partir do qual foi cancelada
+//   - descricao: string (optional, 0-300 chars) - Detalhes adicionais
 //   - criadoEm: string (optional, immutable, 0-50 chars) - Timestamp de criação
 //   - atualizadoEm: string (optional, 0-50 chars) - Timestamp de atualização
 //   - id: string (optional, 0-60 chars) - ID de documento no cliente
@@ -82,6 +103,9 @@ rules_version = '2';
 //       taxaManual: number or null (optional)
 //       poupancaFixa: number or null (optional)
 //       aportesConfirmados: map (optional, max 200 keys)
+//       atualizadoEm: string (optional, 0-50 chars)
+//   - parcelamentos_fatura_renato, parcelamentos_fatura_ingrid:
+//       acordos: map (required, max 200 keys) - Mapa 'cartao_mes' -> dados do parcelamento de fatura
 //       atualizadoEm: string (optional, 0-50 chars)
 // ===============================================================
 
@@ -173,6 +197,7 @@ service cloud.firestore {
       return data.keys().hasAll(['data', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel']) &&
              data.keys().hasOnly(['data', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel',
                                   'descricao', 'origem', 'origemCaptura', 'parcela', 'parcelas',
+                                  'parcelamentoId', 'congeladoPorParcelamento', 'idAssinatura',
                                   'criadoEm', 'atualizadoEm', 'id']) &&
              isValidDateString(data.data) &&
              isValidValorGasto(data) &&
@@ -187,6 +212,30 @@ service cloud.firestore {
              (!('parcelas' in data) ||
               (data.parcelas is string && data.parcelas.size() <= 10) ||
               (data.parcelas is int && data.parcelas >= 1 && data.parcelas <= 96)) &&
+             isValidOptionalString('parcelamentoId', data, 0, 80) &&
+             (!('congeladoPorParcelamento' in data) || data.congeladoPorParcelamento is bool) &&
+             isValidOptionalString('idAssinatura', data, 0, 80) &&
+             isValidOptionalString('criadoEm', data, 0, 50) &&
+             isValidOptionalString('atualizadoEm', data, 0, 50) &&
+             isValidOptionalString('id', data, 0, 60);
+    }
+
+    function isValidAssinatura(data) {
+      return data.keys().hasAll(['nome', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel', 'dataInicio', 'inicioCiclo', 'ativa']) &&
+             data.keys().hasOnly(['nome', 'valor', 'cartao', 'categoria', 'tipo', 'responsavel',
+                                  'dataInicio', 'inicioCiclo', 'ativa', 'canceladaAPartirDe',
+                                  'descricao', 'criadoEm', 'atualizadoEm', 'id']) &&
+             isValidString(data.nome, 1, 120) &&
+             isValidPositiveNumber(data.valor) &&
+             isValidString(data.cartao, 1, 80) &&
+             isValidString(data.categoria, 1, 80) &&
+             isValidString(data.tipo, 1, 50) &&
+             data.responsavel in ['meu', 'mozi', 'dividido'] &&
+             isValidDateString(data.dataInicio) &&
+             data.inicioCiclo is string && data.inicioCiclo.matches('^\\d{4}-\\d{2}$') &&
+             data.ativa is bool &&
+             (!('canceladaAPartirDe' in data) || data.canceladaAPartirDe == null || (data.canceladaAPartirDe is string && data.canceladaAPartirDe.matches('^\\d{4}-\\d{2}$'))) &&
+             isValidOptionalString('descricao', data, 0, 300) &&
              isValidOptionalString('criadoEm', data, 0, 50) &&
              isValidOptionalString('atualizadoEm', data, 0, 50) &&
              isValidOptionalString('id', data, 0, 60);
@@ -273,6 +322,13 @@ service cloud.firestore {
          (!('taxaManual' in data) || data.taxaManual == null || data.taxaManual is number) &&
          (!('poupancaFixa' in data) || data.poupancaFixa == null || data.poupancaFixa is number) &&
          (!('aportesConfirmados' in data) || (data.aportesConfirmados is map && data.aportesConfirmados.keys().size() <= 200)) &&
+         isValidOptionalString('atualizadoEm', data, 0, 50)) ||
+
+        // Acordos de parcelamento de fatura ('Apertou a Fatura')
+        (docId in ['parcelamentos_fatura_renato', 'parcelamentos_fatura_ingrid'] &&
+         data.keys().hasOnly(['acordos', 'atualizadoEm']) &&
+         data.acordos is map &&
+         data.acordos.keys().size() <= 200 &&
          isValidOptionalString('atualizadoEm', data, 0, 50))
       );
     }
@@ -292,11 +348,31 @@ service cloud.firestore {
       allow delete: if isRenato();
     }
 
-    // Gastos da Ingrid (dados estritamente isolados da parceira)
+    // Gastos da Ingrid:
+    // - Leitura: Ingrid e Renato (leitura simétrica para auditar reembolsos)
+    // - Criação, Atualização e Exclusão: Exclusivo Ingrid
     match /gastos_ingrid/{gastoId} {
-      allow read: if isIngrid();
+      allow read: if isIngrid() || isRenato();
       allow create: if isIngrid() && isValidGasto(request.resource.data);
       allow update: if isIngrid() && isValidGasto(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isIngrid();
+    }
+
+    // ===============================================================
+    // Coleções de Assinaturas e Recorrências Fixas
+    // ===============================================================
+
+    match /assinaturas/{assinaturaId} {
+      allow read: if isRenato() || isIngrid();
+      allow create: if isRenato() && isValidAssinatura(request.resource.data);
+      allow update: if isRenato() && isValidAssinatura(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
+      allow delete: if isRenato();
+    }
+
+    match /assinaturas_ingrid/{assinaturaId} {
+      allow read: if isIngrid() || isRenato();
+      allow create: if isIngrid() && isValidAssinatura(request.resource.data);
+      allow update: if isIngrid() && isValidAssinatura(request.resource.data) && isImmutableFieldUnchanged('criadoEm');
       allow delete: if isIngrid();
     }
 
@@ -359,19 +435,21 @@ service cloud.firestore {
     // ===============================================================
 
     match /configuracoes/{documentId} {
-      // Documentos do perfil Renato
+      // Leitura de documentos de configuração
       allow read: if (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
                      (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
-                     (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()));
+                     (documentId in ['fatura_itau_ingrid', 'parcelamentos_fatura_renato', 'parcelamentos_fatura_ingrid'] && (isRenato() || isIngrid()));
 
+      // Gravação e atualização
       allow create, update: if isValidConfiguracao(documentId, request.resource.data) && (
-        (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
-        (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
+        (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva', 'parcelamentos_fatura_renato'] && isRenato()) ||
+        (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid', 'parcelamentos_fatura_ingrid'] && isIngrid()) ||
         (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()))
       );
 
-      allow delete: if (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva'] && isRenato()) ||
-                       (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid'] && isIngrid()) ||
+      // Exclusão
+      allow delete: if (documentId in ['cartoes_renato', 'salarios_ajustados', 'reserva', 'parcelamentos_fatura_renato'] && isRenato()) ||
+                       (documentId in ['cartoes_ingrid', 'salarios_ingrid', 'reserva_ingrid', 'parcelamentos_fatura_ingrid'] && isIngrid()) ||
                        (documentId == 'fatura_itau_ingrid' && (isRenato() || isIngrid()));
     }
 

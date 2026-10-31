@@ -7,7 +7,7 @@ import { useMes } from "../context/MesContext";
 
 export function useProjecaoSaldo(qtd = 3) {
     const { saldo, getSalarioDoMes } = useSaldo();
-    const { gastos } = useGastos();
+    const { gastos, assinaturas, isAssinaturaValidaNoCiclo } = useGastos();
     const { essenciais } = useEssencial();
     const { mesReferencia } = useMes() || {};
 
@@ -58,9 +58,13 @@ export function useProjecaoSaldo(qtd = 3) {
             })
             .reduce((acc, item) => acc + parseCurrency(item.valor), 0);
 
-        // saídas (gastos com cartão - excluindo Mozi e aplicando 50% em divididos)
-        const saidas = (gastos || [])
+        const strMes = String(mesIndex + 1).padStart(2, "0");
+        const chave = `${ano}-${strMes}`;
+
+        // saídas com cartão (compras avulsas, parcelas normais e parcelas de "Apertou a Fatura")
+        const saidasGastos = (gastos || [])
             .filter((item) => {
+                if (item.congeladoPorParcelamento) return false;
                 const data = parseDataSegura(item.data);
                 return (
                     data &&
@@ -75,6 +79,21 @@ export function useProjecaoSaldo(qtd = 3) {
                 return acc + parseCurrency(item.valor) * fator;
             }, 0);
 
+        // saídas com assinaturas recorrentes ativas naquele mês
+        const saidasAssinaturas = (assinaturas || [])
+            .filter((item) => {
+                if (!isAssinaturaValidaNoCiclo) return item.ativa;
+                return isAssinaturaValidaNoCiclo(item, chave);
+            })
+            .reduce((acc, item) => {
+                const responsavel = (item.responsavel || "meu").toLowerCase();
+                if (responsavel === "mozi") return acc;
+                const fator = responsavel === "dividido" ? 0.5 : 1.0;
+                return acc + parseCurrency(item.valor) * fator;
+            }, 0);
+
+        const saidas = saidasGastos + saidasAssinaturas;
+
         // essenciais (base fixa recorrente)
         const essenciaisTotal = (essenciais || []).reduce(
             (acc, item) => acc + parseCurrency(item.valor),
@@ -83,8 +102,6 @@ export function useProjecaoSaldo(qtd = 3) {
 
         // saldo líquido do mês
         const valor = Number((salario + entradasExtras - (saidas + essenciaisTotal)).toFixed(2));
-        const strMes = String(mesIndex + 1).padStart(2, "0");
-        const chave = `${ano}-${strMes}`;
 
         return { mes, valor, ano, mesIndex, chave };
     });

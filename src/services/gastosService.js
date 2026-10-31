@@ -113,6 +113,33 @@ export async function getGastosReembolsoMoziAPI() {
 }
 
 /**
+ * Busca da coleção da Ingrid os gastos onde o responsável é "mozi" ou "dividido".
+ * O perfil do Renato consome essa função para saber em tempo real o que ela gastou e dividiu com ele.
+ */
+export async function getGastosReembolsoIngridAPI() {
+    if (!isFirebaseConfigured) return [];
+    try {
+        const q = query(
+            collection(db, "gastos_ingrid"),
+            where("responsavel", "in", ["mozi", "dividido"])
+        );
+        const querySnapshot = await getDocs(q);
+        const reembolsos = [];
+        querySnapshot.forEach((docSnap) => {
+            reembolsos.push({
+                id: docSnap.id,
+                origem: "ingrid",
+                ...docSnap.data(),
+            });
+        });
+        return reembolsos;
+    } catch (error) {
+        console.warn("Erro ao buscar gastos de reembolso Ingrid no Firestore:", error);
+        return [];
+    }
+}
+
+/**
  * Cartões personalizados de um perfil (ex: cartões da Ingrid)
  */
 export async function getCartoesPersonalizadosAPI(perfil = "ingrid") {
@@ -178,5 +205,58 @@ export async function salvarFaturaItauMesAPI(chaveMes, valor) {
         return atualizado;
     } catch (error) {
         console.error("Erro ao salvar fatura Itaú:", error);
+    }
+}
+
+/**
+ * Acordos de parcelamento de fatura ("Apertou a Fatura")
+ */
+export async function getParcelamentosFaturaAPI(perfil = "renato") {
+    if (!isFirebaseConfigured) return {};
+    try {
+        const docNome = perfil === "ingrid" ? "parcelamentos_fatura_ingrid" : "parcelamentos_fatura_renato";
+        const docRef = doc(db, "configuracoes", docNome);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            return snap.data().acordos || {};
+        }
+        return {};
+    } catch (error) {
+        console.warn(`Erro ao buscar parcelamentos de fatura (${perfil}):`, error);
+        return {};
+    }
+}
+
+export async function salvarParcelamentosFaturaAPI(acordos, perfil = "renato") {
+    if (!isFirebaseConfigured) return acordos;
+    try {
+        const docNome = perfil === "ingrid" ? "parcelamentos_fatura_ingrid" : "parcelamentos_fatura_renato";
+        const docRef = doc(db, "configuracoes", docNome);
+        await setDoc(docRef, { acordos, atualizadoEm: new Date().toISOString() }, { merge: true });
+        return acordos;
+    } catch (error) {
+        console.error(`Erro ao salvar parcelamentos de fatura (${perfil}):`, error);
+        return acordos;
+    }
+}
+
+/**
+ * Exclui todos os lançamentos gerados por um parcelamento de fatura específico
+ */
+export async function removerGastosPorParcelamentoAPI(parcelamentoId, perfil = "renato") {
+    if (!isFirebaseConfigured || !parcelamentoId) return false;
+    const colecao = getNomeColecaoGastos(perfil);
+    try {
+        const q = query(
+            collection(db, colecao),
+            where("parcelamentoId", "==", parcelamentoId)
+        );
+        const snap = await getDocs(q);
+        const deletes = snap.docs.map((docSnap) => deleteDoc(doc(db, colecao, docSnap.id)));
+        await Promise.all(deletes);
+        return true;
+    } catch (error) {
+        console.error(`Erro ao remover gastos do parcelamento ${parcelamentoId}:`, error);
+        return false;
     }
 }

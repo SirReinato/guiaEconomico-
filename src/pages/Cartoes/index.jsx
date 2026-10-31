@@ -10,6 +10,8 @@ import ModalEditarGasto from "../../components/ModalEditarGasto";
 import ModalGerenciarCartoes from "../../components/ModalGerenciarCartoes";
 import ModalFaturaItau from "../../components/ModalFaturaItau";
 import ModalAjusteFaturaCartao from "../../components/ModalAjusteFaturaCartao";
+import ModalApertouFatura from "../../components/ModalApertouFatura";
+import ModalAssinaturasCartao from "../../components/ModalAssinaturasCartao";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Cartoes() {
@@ -40,6 +42,9 @@ export default function Cartoes() {
     const [modalCartoesAberto, setModalCartoesAberto] = useState(false);
     const [modalItauAberto, setModalItauAberto] = useState(false);
     const [modalAjusteAberto, setModalAjusteAberto] = useState(false);
+    const [modalApertouAberto, setModalApertouAberto] = useState(false);
+    const [modalAssinaturasAberto, setModalAssinaturasAberto] = useState(false);
+    const [cartaoParaAssinaturas, setCartaoParaAssinaturas] = useState(null);
 
     const { saldoLiquido } = useResumoFinanceiro();
     const fatura = getFaturaPorCartao(ciclo, mesReferencia);
@@ -60,7 +65,11 @@ export default function Cartoes() {
         });
     }, [cartoesAtivos, fatura]);
 
-    // Coleta todos os gastos do ciclo para os cartões ativos e FIXA ajustes no topo
+    // Coleta todos os gastos do ciclo para os cartões ativos e prioriza no topo:
+    // 1º: Entrada de "Apertou a Fatura"
+    // 2º: Ajuste para dar certinho
+    // 3º: Parcelas de Fatura
+    // 4º: Demais lançamentos por data decrescente
     const todosGastosDoCiclo = useMemo(() => {
         const todos = [];
         (cartoesAtivos || []).forEach((c) => {
@@ -70,11 +79,20 @@ export default function Cartoes() {
         });
 
         return todos.sort((a, b) => {
-            // Fixa ajustes de fatura NO TOPO da lista!
+            const isEntradaA = a.origem === "apertou_fatura_entrada" || a.isEntradaParcelamento;
+            const isEntradaB = b.origem === "apertou_fatura_entrada" || b.isEntradaParcelamento;
+            if (isEntradaA && !isEntradaB) return -1;
+            if (!isEntradaA && isEntradaB) return 1;
+
             const isAjusteA = a.origem === "ajuste_fatura";
             const isAjusteB = b.origem === "ajuste_fatura";
             if (isAjusteA && !isAjusteB) return -1;
             if (!isAjusteA && isAjusteB) return 1;
+
+            const isParcelaAcordoA = a.origem === "apertou_fatura_parcela";
+            const isParcelaAcordoB = b.origem === "apertou_fatura_parcela";
+            if (isParcelaAcordoA && !isParcelaAcordoB) return -1;
+            if (!isParcelaAcordoA && isParcelaAcordoB) return 1;
 
             const dataA = new Date(a.data?.includes("T") ? a.data : `${a.data}T12:00:00`);
             const dataB = new Date(b.data?.includes("T") ? b.data : `${b.data}T12:00:00`);
@@ -91,7 +109,9 @@ export default function Cartoes() {
             return (
                 cNome === alvo ||
                 (g.cartaoOriginal && alvo.includes("renato")) ||
-                (cNome.includes("renato") && alvo.includes("renato"))
+                (cNome.includes("renato") && alvo.includes("renato")) ||
+                (g.cartaoOriginal && alvo.includes("ingrid")) ||
+                (cNome.includes("ingrid") && alvo.includes("ingrid"))
             );
         });
     }, [todosGastosDoCiclo, cartaoSelecionado]);
@@ -107,6 +127,8 @@ export default function Cartoes() {
         let qtdDividido = 0;
 
         gastosPorCartao.forEach((g) => {
+            if (g.congeladoPorParcelamento) return;
+
             const v = g.valorCalculado !== undefined ? g.valorCalculado : parseCurrency(g.valor);
             const resp = g.responsavel || "meu";
             totalGeral += v;
@@ -142,6 +164,7 @@ export default function Cartoes() {
 
     const totalFiltrado = useMemo(() => {
         return gastosFiltrados.reduce((acc, g) => {
+            if (g.congeladoPorParcelamento) return acc;
             const v = g.valorCalculado !== undefined ? g.valorCalculado : parseCurrency(g.valor);
             return acc + v;
         }, 0);
@@ -159,6 +182,11 @@ export default function Cartoes() {
     }, [cartoesAtivos, getGastosDoCiclo, ciclo, mesReferencia, todosGastosDoCiclo.length]);
 
     const valorItauAtual = faturasItau?.[chaveMesAtual] || 0;
+
+    const abrirAssinaturas = (cartao = null) => {
+        setCartaoParaAssinaturas(cartao);
+        setModalAssinaturasAberto(true);
+    };
 
     return (
         <ContainerLista>
@@ -184,8 +212,16 @@ export default function Cartoes() {
                 )}
             </BarraStatusMes>
 
-            {/* Linha de Ações: Ajustar para dar certinho, Gerenciar Cartões e Fatura Itaú */}
+            {/* Linha de Ações: Apertou a Fatura, Assinaturas, Ajustar para dar certinho, Gerenciar Cartões e Fatura Itaú */}
             <BarraAcoesTop>
+                <BotaoApertouFatura onClick={() => setModalApertouAberto(true)}>
+                    🚨 Apertou a Fatura
+                </BotaoApertouFatura>
+
+                <BotaoAssinaturasAcao onClick={() => abrirAssinaturas(cartaoSelecionado !== "todos" ? cartaoSelecionado : null)}>
+                    🔄 Assinaturas
+                </BotaoAssinaturasAcao>
+
                 <BotaoAjustarFatura onClick={() => setModalAjusteAberto(true)}>
                     🎯 Ajustar para dar certinho
                 </BotaoAjustarFatura>
@@ -357,7 +393,12 @@ export default function Cartoes() {
             <ListaGastos>
                 {gastosFiltrados.length > 0 ? (
                     gastosFiltrados.map((gasto) => {
+                        const isEntrada = gasto.origem === "apertou_fatura_entrada" || gasto.isEntradaParcelamento;
+                        const isParcelaAcordo = gasto.origem === "apertou_fatura_parcela";
                         const isAjuste = gasto.origem === "ajuste_fatura";
+                        const isAssinatura = gasto.origem === "assinatura" || gasto.isAssinatura;
+                        const isCongelado = gasto.congeladoPorParcelamento;
+
                         const valorExibicao =
                             gasto.valorCalculado !== undefined
                                 ? gasto.valorCalculado
@@ -365,9 +406,40 @@ export default function Cartoes() {
 
                         const ehGastoIntegrado =
                             gasto.cartao === "Cartões do Renato" ||
+                            gasto.cartao === "Cartões da Ingrid" ||
                             gasto.cartao === "Itaú" ||
                             gasto.id?.startsWith?.("itau-");
 
+                        // 1. Item Especial: Entrada de "Apertou a Fatura" (Fixado no Topo)
+                        if (isEntrada) {
+                            return (
+                                <ItemGastoApertouEntrada key={gasto.id}>
+                                    <AjusteTopoLinha>
+                                        <BadgeApertouDestaque>
+                                            🚨 Apertou a Fatura — Entrada
+                                        </BadgeApertouDestaque>
+                                        <ValorApertouDestaque>
+                                            R$ {valorExibicao.toFixed(2)}
+                                        </ValorApertouDestaque>
+                                    </AjusteTopoLinha>
+                                    <AjusteDetalhesLinha>
+                                        <InfoMetaAjuste>
+                                            <span className="badge-cartao">💳 {gasto.cartao}</span>
+                                            <span className="badge-data">📅 {gasto.data}</span>
+                                            <span className="badge-resp">
+                                                {gasto.responsavel === "mozi" ? `💕 Parte ${isIngrid ? "Renato" : "Mozi"}` : `👤 Parte ${isIngrid ? "Pessoal" : "Minha"}`}
+                                            </span>
+                                            <span className="desc">({gasto.descricao || "Substitui a mensalidade deste mês"})</span>
+                                        </InfoMetaAjuste>
+                                        <BotaoReajustarApertou onClick={() => setModalApertouAberto(true)}>
+                                            Ver Acordo / Desfazer
+                                        </BotaoReajustarApertou>
+                                    </AjusteDetalhesLinha>
+                                </ItemGastoApertouEntrada>
+                            );
+                        }
+
+                        // 2. Item Especial: Ajuste para dar certinho (Fixado no Topo)
                         if (isAjuste) {
                             return (
                                 <ItemGastoAjuste key={gasto.id}>
@@ -394,8 +466,46 @@ export default function Cartoes() {
                             );
                         }
 
+                        // 3. Item Especial: Assinatura Recorrente (Visual Esmeralda Neon)
+                        if (isAssinatura) {
+                            return (
+                                <ItemGastoAssinatura key={gasto.id}>
+                                    <AssinaturaTopoLinha>
+                                        <BadgeAssinaturaDestaque>
+                                            🔄 Assinatura Recorrente
+                                        </BadgeAssinaturaDestaque>
+                                        <ValorAssinaturaDestaque>
+                                            R$ {valorExibicao.toFixed(2)}
+                                            <small>/mês</small>
+                                        </ValorAssinaturaDestaque>
+                                    </AssinaturaTopoLinha>
+                                    <AssinaturaDetalhesLinha>
+                                        <InfoMetaAssinatura>
+                                            <span className="nome-servico">✨ {gasto.descricao || gasto.categoria}</span>
+                                            <span className="badge-cartao">💳 {gasto.cartao}</span>
+                                            <span className="badge-tipo">🏷️ {gasto.tipo}</span>
+                                            {gasto.responsavel === "mozi" && (
+                                                <BadgeResponsavel $tipo="mozi">
+                                                    {isIngrid ? "💕 100% Meu" : "💕 Mozi"}
+                                                </BadgeResponsavel>
+                                            )}
+                                            {gasto.responsavel === "dividido" && (
+                                                <BadgeResponsavel $tipo="dividido">
+                                                    🤝 50% Dividido
+                                                </BadgeResponsavel>
+                                            )}
+                                        </InfoMetaAssinatura>
+                                        <BotaoGerenciarAssinatura onClick={() => abrirAssinaturas(gasto.cartao)}>
+                                            Gerenciar Assinaturas
+                                        </BotaoGerenciarAssinatura>
+                                    </AssinaturaDetalhesLinha>
+                                </ItemGastoAssinatura>
+                            );
+                        }
+
+                        // 4. Item Normal (com suporte a Parcela de Fatura e Compras Congeladas por acordo)
                         return (
-                            <ItemGasto key={gasto.id}>
+                            <ItemGasto key={gasto.id} $isCongelado={isCongelado} $isParcelaFatura={isParcelaAcordo}>
                                 {/* Visual Desktop em Colunas */}
                                 <ItemGastoDesktop>
                                     <Coluna>{gasto.data}</Coluna>
@@ -405,8 +515,10 @@ export default function Cartoes() {
                                     <Coluna>{gasto.cartao}</Coluna>
                                     <Coluna tipo={gasto.tipo}>{gasto.tipo}</Coluna>
                                     <Coluna>
+                                        {isParcelaAcordo && <BadgeParcelaFatura>🚨 Parcela Fatura</BadgeParcelaFatura>}
                                         {gasto.descricaoExibicao || gasto.categoria}
                                         {gasto.parcela ? ` (${gasto.parcela})` : ""}
+                                        {isCongelado && <BadgeCongelado>🔒 Substituído pela Entrada</BadgeCongelado>}
                                         {gasto.responsavel === "mozi" && (
                                             <BadgeResponsavel $tipo="mozi">
                                                 {isIngrid ? "💕 100% a Pagar" : "💕 Mozi"}
@@ -418,9 +530,13 @@ export default function Cartoes() {
                                             </BadgeResponsavel>
                                         )}
                                     </Coluna>
-                                    {!ehGastoIntegrado ? (
+                                    {!ehGastoIntegrado && !isParcelaAcordo ? (
                                         <BotaoEditar onClick={() => setGastoParaEditar(gasto)}>
                                             Editar
+                                        </BotaoEditar>
+                                    ) : isParcelaAcordo ? (
+                                        <BotaoEditar onClick={() => setModalApertouAberto(true)}>
+                                            Acordo
                                         </BotaoEditar>
                                     ) : gasto.cartao === "Itaú" ? (
                                         <BotaoEditar onClick={() => setModalItauAberto(true)}>
@@ -438,9 +554,11 @@ export default function Cartoes() {
                                     <ItemMobileLinhaCima>
                                         <DescricaoMobile>
                                             <span className="categoria">
+                                                {isParcelaAcordo && <span className="tag-parcela-fatura">🚨 Parcela Fatura </span>}
                                                 {gasto.descricaoExibicao || gasto.categoria}
                                             </span>
                                             {gasto.parcela && <span className="parcela">({gasto.parcela})</span>}
+                                            {isCongelado && <span className="tag-congelado">🔒 Substituído p/ Entrada</span>}
                                         </DescricaoMobile>
                                         <ValorMobile>
                                             R$ {valorExibicao.toFixed(2)}
@@ -466,9 +584,13 @@ export default function Cartoes() {
                                             )}
                                         </BadgesMobile>
 
-                                        {!ehGastoIntegrado ? (
+                                        {!ehGastoIntegrado && !isParcelaAcordo ? (
                                             <BotaoEditarMobile onClick={() => setGastoParaEditar(gasto)}>
                                                 Editar
+                                            </BotaoEditarMobile>
+                                        ) : isParcelaAcordo ? (
+                                            <BotaoEditarMobile onClick={() => setModalApertouAberto(true)}>
+                                                Acordo
                                             </BotaoEditarMobile>
                                         ) : gasto.cartao === "Itaú" ? (
                                             <BotaoEditarMobile onClick={() => setModalItauAberto(true)}>
@@ -523,6 +645,21 @@ export default function Cartoes() {
                     onClose={() => setModalAjusteAberto(false)}
                 />
             )}
+
+            {modalApertouAberto && (
+                <ModalApertouFatura
+                    cartaoInicial={cartaoSelecionado}
+                    ciclo={ciclo}
+                    onClose={() => setModalApertouAberto(false)}
+                />
+            )}
+
+            {modalAssinaturasAberto && (
+                <ModalAssinaturasCartao
+                    cartaoFiltro={cartaoParaAssinaturas}
+                    onClose={() => setModalAssinaturasAberto(false)}
+                />
+            )}
         </ContainerLista>
     );
 }
@@ -553,11 +690,65 @@ const ContainerLista = styled.div`
 
 const BarraAcoesTop = styled.div`
     display: flex;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 6px;
     flex-wrap: wrap;
     justify-content: center;
     width: 100%;
+`;
+
+const BotaoApertouFatura = styled.button`
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.45));
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #fca5a5;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 7px 15px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &:hover {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(220, 38, 38, 0.65));
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 0 18px rgba(239, 68, 68, 0.45);
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
+`;
+
+const BotaoAssinaturasAcao = styled.button`
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35));
+    border: 1px solid rgba(16, 185, 129, 0.55);
+    color: #6ee7b7;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 7px 15px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &:hover {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.5));
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
 `;
 
 const BotaoAjustarFatura = styled.button`
@@ -566,7 +757,7 @@ const BotaoAjustarFatura = styled.button`
     color: #38bdf8;
     font-size: 0.85rem;
     font-weight: 700;
-    padding: 7px 16px;
+    padding: 7px 15px;
     border-radius: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -655,7 +846,10 @@ const ItemGasto = styled.div`
     background-color: ${({ theme }) => theme.colors.cardItemBg || "#0d1b2a"};
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid
+        ${({ $isParcelaFatura }) =>
+            $isParcelaFatura ? "rgba(239, 68, 68, 0.35)" : "rgba(255, 255, 255, 0.05)"};
+    opacity: ${({ $isCongelado }) => ($isCongelado ? 0.6 : 1)};
     transition: transform 0.15s ease, border-color 0.15s ease;
 
     &:hover {
@@ -712,6 +906,18 @@ const DescricaoMobile = styled.div`
     .parcela {
         font-size: 0.75rem;
         color: #94a3b8;
+    }
+
+    .tag-parcela-fatura {
+        color: #f87171;
+        font-weight: 800;
+        font-size: 0.78rem;
+    }
+
+    .tag-congelado {
+        font-size: 0.72rem;
+        color: #fca5a5;
+        font-style: italic;
     }
 `;
 
@@ -788,7 +994,65 @@ const BotaoEditarMobile = styled.button`
     }
 `;
 
-/* Item Destaque para Ajuste de Fatura (Fixado no Topo) */
+/* ===============================================================
+   ITENS ESPECIAIS (APERTOU A FATURA, AJUSTE E ASSINATURA)
+   =============================================================== */
+
+/* 1. Item Entrada Apertou a Fatura */
+const ItemGastoApertouEntrada = styled.div`
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(153, 27, 27, 0.18));
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.2);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.2s ease;
+
+    &:hover {
+        border-color: rgba(239, 68, 68, 0.8);
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+    }
+`;
+
+const BadgeApertouDestaque = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+`;
+
+const ValorApertouDestaque = styled.span`
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #fca5a5;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+`;
+
+const BotaoReajustarApertou = styled.button`
+    background: rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #dc2626;
+    }
+`;
+
+/* 2. Item Ajuste de Fatura */
 const ItemGastoAjuste = styled.div`
     background: linear-gradient(135deg, rgba(130, 10, 209, 0.18), rgba(0, 179, 255, 0.12));
     border: 1px solid rgba(0, 179, 255, 0.45);
@@ -823,7 +1087,6 @@ const BadgeAjusteDestaque = styled.span`
     font-weight: 800;
     padding: 4px 10px;
     border-radius: 20px;
-    letter-spacing: 0.02em;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 `;
 
@@ -871,6 +1134,118 @@ const BotaoReajustar = styled.button`
         background: #0284c7;
         color: #ffffff;
     }
+`;
+
+/* 3. Item Assinatura Recorrente */
+const ItemGastoAssinatura = styled.div`
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(6, 78, 59, 0.16));
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.2s ease;
+
+    &:hover {
+        border-color: rgba(16, 185, 129, 0.75);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+`;
+
+const AssinaturaTopoLinha = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+`;
+
+const BadgeAssinaturaDestaque = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+`;
+
+const ValorAssinaturaDestaque = styled.span`
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: #34d399;
+    text-shadow: 0 0 10px rgba(52, 211, 153, 0.35);
+
+    small {
+        font-size: 0.75rem;
+        font-weight: normal;
+        color: #a7f3d0;
+        margin-left: 2px;
+    }
+`;
+
+const AssinaturaDetalhesLinha = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+`;
+
+const InfoMetaAssinatura = styled.div`
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+
+    .nome-servico {
+        font-weight: 700;
+        color: #ffffff;
+    }
+`;
+
+const BotaoGerenciarAssinatura = styled.button`
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    color: #a7f3d0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #059669;
+        color: #ffffff;
+    }
+`;
+
+const BadgeParcelaFatura = styled.span`
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-right: 6px;
+`;
+
+const BadgeCongelado = styled.span`
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px dashed rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-left: 6px;
 `;
 
 const Coluna = styled.div`
@@ -948,8 +1323,8 @@ const BotaoNavegacao = styled.button`
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 1rem;
-    transition: all 0.2s;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
 
     &:hover {
         background: #00b3ff;
@@ -960,193 +1335,115 @@ const BotaoNavegacao = styled.button`
 
 const BarraStatusMes = styled.div`
     display: flex;
-    align-items: center;
     justify-content: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+`;
+
+const BadgePago = styled.span`
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-size: 0.85em;
+    font-weight: 600;
 `;
 
 const BotaoConfirmarPago = styled.button`
     background: linear-gradient(135deg, #10b981, #059669);
-    color: #ffffff;
     border: none;
-    padding: 8px 18px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 0.9em;
+    color: #ffffff;
+    padding: 7px 16px;
+    border-radius: 14px;
+    font-size: 0.85em;
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 
     &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45);
     }
-`;
-
-const BadgePago = styled.div`
-    background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    padding: 6px 14px;
-    border-radius: 16px;
-    font-weight: bold;
-    font-size: 0.85em;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-`;
-
-const BadgeResponsavel = styled.span`
-    font-size: 0.75em;
-    padding: 2px 6px;
-    border-radius: 6px;
-    margin-left: 6px;
-    font-weight: bold;
-    display: inline-block;
-    ${({ $tipo }) =>
-        $tipo === "mozi"
-            ? `
-        background: rgba(236, 72, 153, 0.2);
-        color: #f472b6;
-        border: 1px solid rgba(236, 72, 153, 0.4);
-    `
-            : `
-        background: rgba(59, 130, 246, 0.2);
-        color: #60a5fa;
-        border: 1px solid rgba(59, 130, 246, 0.4);
-    `}
 `;
 
 const BarraFiltroCartoes = styled.div`
     display: flex;
     gap: 8px;
-    margin: 10px 0 4px 0;
     width: 100%;
-    flex-wrap: wrap;
-    justify-content: center;
+    overflow-x: auto;
+    padding: 6px 2px;
+    scrollbar-width: thin;
+    scrollbar-color: #820ad1 transparent;
+
+    &::-webkit-scrollbar {
+        height: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background-color: #820ad1;
+        border-radius: 4px;
+    }
 `;
 
 const BotaoFiltroCartao = styled.button`
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.85em;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-size: 0.8em;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
     transition: all 0.2s ease;
     border: 1px solid
-        ${({ $ativo, $cor, theme }) =>
-            $ativo
-                ? $cor || theme.colors.primary || "#820ad1"
-                : "rgba(255, 255, 255, 0.12)"};
+        ${({ $ativo, $cor }) =>
+            $ativo ? $cor || "#820ad1" : "rgba(255, 255, 255, 0.12)"};
     background: ${({ $ativo, $cor }) =>
         $ativo
-            ? $cor
-                ? `linear-gradient(135deg, ${$cor}dd, ${$cor})`
-                : "linear-gradient(135deg, #820ad1, #6200ea)"
-            : "rgba(255, 255, 255, 0.05)"};
-    color: ${({ $ativo, $cor }) => {
-        if (!$ativo) return "#cbd5e1";
-        if ($cor === "#eab308") return "#1e1e1e";
-        return "#ffffff";
-    }};
+            ? `linear-gradient(135deg, ${$cor ? `${$cor}55` : "rgba(130, 10, 209, 0.4)"}, rgba(13, 18, 31, 0.9))`
+            : "rgba(255, 255, 255, 0.04)"};
+    color: ${({ $ativo }) => ($ativo ? "#ffffff" : "#cbd5e1")};
     box-shadow: ${({ $ativo, $cor }) =>
-        $ativo
-            ? `0 4px 12px ${$cor ? `${$cor}55` : "rgba(130, 10, 209, 0.4)"}`
-            : "none"};
+        $ativo ? `0 2px 10px ${$cor ? `${$cor}44` : "rgba(130, 10, 209, 0.3)"}` : "none"};
 
     &:hover {
         transform: translateY(-1px);
         background: ${({ $ativo }) =>
-            $ativo
-                ? undefined
-                : "rgba(255, 255, 255, 0.1)"};
+            $ativo ? undefined : "rgba(255, 255, 255, 0.08)"};
         color: #ffffff;
-    }
-
-    &:active {
-        transform: scale(0.98);
     }
 `;
 
 const BadgeContagem = styled.span`
-    font-size: 0.8em;
-    padding: 2px 7px;
-    border-radius: 12px;
     background: ${({ $ativo }) =>
-        $ativo ? "rgba(0, 0, 0, 0.25)" : "rgba(255, 255, 255, 0.12)"};
-    color: inherit;
-    font-weight: bold;
-`;
-
-const InfoFiltroAtivo = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 8px 16px;
-    background: rgba(130, 10, 209, 0.12);
-    border: 1px solid rgba(130, 10, 209, 0.3);
+        $ativo ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.08)"};
+    color: #ffffff;
+    padding: 1px 6px;
     border-radius: 10px;
-    font-size: 0.85em;
-    color: #e2e8f0;
-    margin-top: 4px;
-
-    @media (max-width: 600px) {
-        flex-direction: column;
-        gap: 8px;
-        align-items: flex-start;
-    }
-`;
-
-const BotaoLimparFiltro = styled.button`
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #e2e8f0;
-    font-size: 0.8em;
-    padding: 4px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-    }
-`;
-
-const MensagemVazia = styled.div`
-    color: #94a3b8;
-    text-align: center;
-    padding: 32px 16px;
-    font-size: 0.9em;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 12px;
-    border: 1px dashed rgba(255, 255, 255, 0.1);
-    width: 100%;
+    font-size: 0.75em;
+    font-weight: 700;
 `;
 
 const BarraFiltroResponsavel = styled.div`
     display: flex;
     gap: 8px;
-    margin: 4px 0 8px 0;
     width: 100%;
-    flex-wrap: wrap;
-    justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 `;
 
 const LabelFiltroSecao = styled.span`
     font-size: 0.75em;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
     color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     margin-right: 4px;
 
     @media (max-width: 600px) {
@@ -1201,4 +1498,57 @@ const BotaoFiltroResponsavel = styled.button`
     &:active {
         transform: scale(0.98);
     }
+`;
+
+const InfoFiltroAtivo = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 6px 12px;
+    background: rgba(130, 10, 209, 0.15);
+    border: 1px dashed rgba(130, 10, 209, 0.4);
+    border-radius: 10px;
+    font-size: 0.8em;
+    color: #e2e8f0;
+    box-sizing: border-box;
+
+    strong {
+        color: #00b3ff;
+    }
+`;
+
+const BotaoLimparFiltro = styled.button`
+    background: transparent;
+    border: none;
+    color: #ff6b6b;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-weight: 600;
+
+    &:hover {
+        text-decoration: underline;
+    }
+`;
+
+const BadgeResponsavel = styled.span`
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-left: 6px;
+    font-weight: 600;
+    background: ${({ $tipo }) =>
+        $tipo === "mozi" ? "rgba(244, 114, 182, 0.2)" : "rgba(59, 130, 246, 0.2)"};
+    border: 1px solid
+        ${({ $tipo }) =>
+            $tipo === "mozi" ? "rgba(244, 114, 182, 0.4)" : "rgba(59, 130, 246, 0.4)"};
+    color: ${({ $tipo }) => ($tipo === "mozi" ? "#f472b6" : "#60a5fa")};
+`;
+
+const MensagemVazia = styled.div`
+    text-align: center;
+    padding: 40px 16px;
+    color: #64748b;
+    font-size: 0.9em;
+    width: 100%;
 `;
