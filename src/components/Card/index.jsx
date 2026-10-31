@@ -8,6 +8,8 @@ export default function Card({
     $isNegative,
     textTitulo,
     textDescricao,
+    badgesLinhas,
+    onLinhaClick,
     $bgClaro,
     $titulo,
     $tituloRoxo,
@@ -52,14 +54,30 @@ export default function Card({
             {(textTitulo || textDescricao) && (
                 <CardCorpoDescricao>
                     {Array.isArray(textTitulo) && Array.isArray(textDescricao) ? (
-                        textTitulo.map((tituloItem, index) => (
-                            <LinhaDescricao key={index}>
-                                <TextTitulo>{tituloItem}</TextTitulo>
-                                <TextDescricao>
-                                    {textDescricao[index]}
-                                </TextDescricao>
-                            </LinhaDescricao>
-                        ))
+                        textTitulo.map((tituloItem, index) => {
+                            const badge = badgesLinhas && badgesLinhas[index];
+                            return (
+                                <LinhaDescricao
+                                    key={index}
+                                    $clicavel={Boolean(onLinhaClick)}
+                                    onClick={(e) => {
+                                        if (onLinhaClick) {
+                                            e.stopPropagation();
+                                            onLinhaClick(index, tituloItem);
+                                        }
+                                    }}
+                                    title={onLinhaClick ? "Clique para gerenciar assinaturas deste cartão" : undefined}
+                                >
+                                    <TextTitulo>
+                                        {tituloItem}
+                                        {badge && <BadgeLinha>{badge}</BadgeLinha>}
+                                    </TextTitulo>
+                                    <TextDescricao>
+                                        {textDescricao[index]}
+                                    </TextDescricao>
+                                </LinhaDescricao>
+                            );
+                        })
                     ) : (
                         <LinhaDescricao>
                             <TextTitulo>{textTitulo}</TextTitulo>
@@ -175,7 +193,6 @@ const Destaque = styled.h2`
     white-space: nowrap;
     flex-shrink: 0;
     margin: 0;
-    /* Suavização das pílulas de valor: fundo com alta transparência e cor neon */
     background: ${({ $isNegative, $bgAlert }) =>
         $isNegative
             ? "rgba(239, 68, 68, 0.15)"
@@ -224,7 +241,7 @@ const CardCorpoDescricao = styled.div`
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 4px;
     margin-top: 14px;
     flex: 1;
     min-height: 0;
@@ -232,7 +249,6 @@ const CardCorpoDescricao = styled.div`
     overflow-x: hidden;
     padding-right: 6px;
 
-    /* Barra de rolagem estilizada e discreta */
     scrollbar-width: thin;
     scrollbar-color: rgba(130, 10, 209, 0.5) transparent;
 
@@ -290,13 +306,24 @@ const LinhaDescricao = styled.div`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 0;
+    padding: ${({ $clicavel }) => ($clicavel ? "6px 4px" : "6px 0")};
     flex-shrink: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    cursor: ${({ $clicavel }) => ($clicavel ? "pointer" : "default")};
+    border-radius: 8px;
+    transition: background 0.15s ease;
 
     &:last-child {
         border-bottom: none;
     }
+
+    ${({ $clicavel }) =>
+        $clicavel &&
+        `
+        &:hover {
+            background: rgba(0, 179, 255, 0.08);
+        }
+    `}
 `;
 
 const TextTitulo = styled.h3`
@@ -311,6 +338,20 @@ const TextTitulo = styled.h3`
     white-space: nowrap;
     padding-right: 12px;
     margin: 0;
+    display: flex;
+    align-items: center;
+`;
+
+const BadgeLinha = styled.span`
+    margin-left: 8px;
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    font-weight: 700;
+    white-space: nowrap;
 `;
 
 const TextDescricao = styled.p`
