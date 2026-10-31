@@ -10,7 +10,7 @@ rules_version = '2';
 // Document ID: Auto-generated Firestore ID
 // Fields:
 //   - data: string (required, format 'YYYY-MM-DD') - Data da compra do cartão
-//   - valor: number (required, positive, < 100M) - Valor em BRL
+//   - valor: number (required, positive, < 100M; ou != 0 entre -100M e 100M se origem == 'ajuste_fatura') - Valor em BRL
 //   - cartao: string (required, 1-80 chars) - Nome do cartão de crédito
 //   - categoria: string (required, 1-80 chars) - Nome da categoria do gasto
 //   - tipo: string (required, 1-50 chars) - Classificação orçamentária (Essencial, Desejo, etc.)
@@ -146,6 +146,16 @@ service cloud.firestore {
       return val is number && val > 0 && val < 100000000;
     }
 
+    function isValidValorAjusteFatura(val) {
+      return val is number && val != 0 && val > -100000000 && val < 100000000;
+    }
+
+    function isValidValorGasto(data) {
+      return ('origem' in data && data.origem == 'ajuste_fatura')
+        ? isValidValorAjusteFatura(data.valor)
+        : isValidPositiveNumber(data.valor);
+    }
+
     function isValidNonNegativeNumber(val) {
       return val is number && val >= 0 && val < 1000000000;
     }
@@ -165,7 +175,7 @@ service cloud.firestore {
                                   'descricao', 'origem', 'origemCaptura', 'parcela', 'parcelas',
                                   'criadoEm', 'atualizadoEm', 'id']) &&
              isValidDateString(data.data) &&
-             isValidPositiveNumber(data.valor) &&
+             isValidValorGasto(data) &&
              isValidString(data.cartao, 1, 80) &&
              isValidString(data.categoria, 1, 80) &&
              isValidString(data.tipo, 1, 50) &&
