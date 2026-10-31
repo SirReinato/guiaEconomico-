@@ -48,6 +48,7 @@ export default function ModalAjusteFaturaCartao({
     const [tipo, setTipo] = useState("Essencial");
     const [descricao, setDescricao] = useState("Ajuste de fatura para bater certinho");
     const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState("");
 
     // Ajuste já existente no banco de dados para este cartão e ciclo
     const ajusteExistente = useMemo(() => {
@@ -114,18 +115,24 @@ export default function ModalAjusteFaturaCartao({
 
     const handleSalvar = async (e) => {
         e.preventDefault();
+        setErro("");
         setSalvando(true);
         try {
-            await salvarAjusteFaturaCartao({
+            const res = await salvarAjusteFaturaCartao({
                 cartao: cartaoSelecionado,
                 ciclo,
                 valorAjuste: valorAjusteCalculado,
                 tipo,
                 descricao,
             });
-            onClose();
+            if (res) {
+                onClose();
+            } else {
+                setErro("Erro de permissão no Firestore. Publique o arquivo firestore.rules no Console do Firebase para permitir valores negativos em ajustes.");
+            }
         } catch (err) {
             console.error("Erro ao salvar ajuste de fatura:", err);
+            setErro(err?.message || "Erro ao salvar o ajuste de fatura.");
         } finally {
             setSalvando(false);
         }
@@ -133,16 +140,22 @@ export default function ModalAjusteFaturaCartao({
 
     const handleRemover = async () => {
         if (!ajusteExistente) return;
+        setErro("");
         setSalvando(true);
         try {
-            await salvarAjusteFaturaCartao({
+            const res = await salvarAjusteFaturaCartao({
                 cartao: cartaoSelecionado,
                 ciclo,
                 valorAjuste: 0,
             });
-            onClose();
+            if (res) {
+                onClose();
+            } else {
+                setErro("Não foi possível remover o ajuste.");
+            }
         } catch (err) {
             console.error("Erro ao remover ajuste:", err);
+            setErro(err?.message || "Erro ao remover ajuste.");
         } finally {
             setSalvando(false);
         }
@@ -311,6 +324,13 @@ export default function ModalAjusteFaturaCartao({
                             />
                         </GrupoCampo>
                     </LinhaDupla>
+
+                    {erro && (
+                        <MensagemErro>
+                            <span>⚠️</span>
+                            <div>{erro}</div>
+                        </MensagemErro>
+                    )}
 
                     <Footer>
                         {ajusteExistente && (
@@ -778,4 +798,17 @@ const BotaoRemover = styled.button`
     @media (max-width: 480px) {
         width: 100%;
     }
+`;
+
+const MensagemErro = styled.div`
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: rgba(244, 63, 94, 0.12);
+    border: 1px solid rgba(244, 63, 94, 0.35);
+    color: #fda4af;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    line-height: 1.4;
 `;
