@@ -624,7 +624,7 @@ const MainContainer = styled.main`
     @media (max-width: 768px) {
         flex: 1;
         overflow-y: auto;
-        padding: 12px 12px 88px 12px;
+        padding: 10px 10px calc(80px + env(safe-area-inset-bottom, 0px)) 10px;
         -webkit-overflow-scrolling: touch;
     }
 `;
@@ -665,15 +665,16 @@ const MobileBottomNav = styled.nav`
         bottom: 0;
         left: 0;
         right: 0;
-        height: 64px;
-        background-color: rgba(13, 18, 31, 0.95);
-        backdrop-filter: blur(12px);
+        height: calc(58px + env(safe-area-inset-bottom, 0px));
+        background-color: rgba(13, 18, 31, 0.96);
+        backdrop-filter: blur(16px);
         border-top: 1px solid rgba(255, 255, 255, 0.08);
         justify-content: space-around;
-        align-items: center;
+        align-items: flex-start;
         z-index: 90;
-        padding: 0 4px;
+        padding: 5px 2px calc(4px + env(safe-area-inset-bottom, 0px)) 2px;
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+        box-sizing: border-box;
     }
 `;
 
@@ -684,7 +685,8 @@ const BottomNavItem = styled(Link)`
     justify-content: center;
     text-decoration: none;
     flex: 1;
-    height: 100%;
+    min-width: 0;
+    height: 48px;
     color: ${({ $ativo }) => ($ativo ? "#00b3ff" : "#94a3b8")};
     transition: all 0.2s ease;
 
@@ -697,30 +699,35 @@ const BottomNavItem = styled(Link)`
 `;
 
 const BottomNavIcon = styled.span`
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     line-height: 1;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
 `;
 
 const BottomNavText = styled.span`
-    font-size: 0.68rem;
-    letter-spacing: 0.2px;
+    font-size: 0.62rem;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 `;
 
 const BottomNavAddButton = styled.button`
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     border: none;
     background: linear-gradient(135deg, #820ad1 0%, #00b3ff 100%);
     color: white;
-    font-size: 1.8rem;
+    font-size: 1.6rem;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 16px rgba(130, 10, 209, 0.5);
-    margin-top: -24px;
+    margin-top: -18px;
+    flex-shrink: 0;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 
     &:active {
@@ -730,7 +737,7 @@ const BottomNavAddButton = styled.button`
 
     span {
         line-height: 1;
-        margin-top: -3px;
+        margin-top: -2px;
     }
 `;
 
@@ -753,7 +760,7 @@ const BottomSheetAcoes = styled.div`
     background: #0d121f;
     border-top: 1px solid #1e293b;
     border-radius: 20px 20px 0 0;
-    padding: 20px 20px 32px 20px;
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px;
     z-index: 100;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
     animation: slideUp 0.22s ease-out;

@@ -79,6 +79,12 @@ const CardContainer = styled.div`
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
     min-height: 240px;
+
+    @media (max-width: 768px) {
+        padding: 16px 16px;
+        border-radius: 16px;
+        min-height: auto;
+    }
 `;
 
 const HeaderCard = styled.div`
@@ -86,15 +92,19 @@ const HeaderCard = styled.div`
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
-    gap: 12px;
+    gap: 10px;
+
+    @media (max-width: 480px) {
+        gap: 8px;
+    }
 `;
 
 const AbasSelector = styled.div`
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: rgba(255, 255, 255, 0.04);
-    padding: 4px;
+    padding: 3px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.06);
 `;
@@ -105,9 +115,9 @@ const BotaoAba = styled.button`
     border: ${({ $ativo }) =>
         $ativo ? "1px solid rgba(0, 179, 255, 0.4)" : "1px solid transparent"};
     color: ${({ $ativo }) => ($ativo ? "#00d2ff" : "#94a3b8")};
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 8px;
-    font-size: 1.15em;
+    font-size: 1.05em;
     font-family: inherit;
     font-weight: bold;
     cursor: pointer;
@@ -116,6 +126,11 @@ const BotaoAba = styled.button`
 
     &:hover {
         color: #ffffff;
+    }
+
+    @media (max-width: 480px) {
+        font-size: 0.9em;
+        padding: 5px 8px;
     }
 `;
 
@@ -127,10 +142,16 @@ const DestaqueValor = styled.h2`
     letter-spacing: 0.12em;
     white-space: nowrap;
     flex-shrink: 0;
+    margin: 0;
     background: rgba(130, 10, 209, 0.15);
     color: #00d2ff;
     border: 1px solid rgba(0, 179, 255, 0.25);
     box-shadow: 0 0 10px rgba(130, 10, 209, 0.15);
+
+    @media (max-width: 480px) {
+        font-size: 1.15em;
+        padding: 5px 9px;
+    }
 `;
 
 const AcaoLinha = styled.div`
@@ -179,6 +200,10 @@ const CorpoLista = styled.div`
         background: rgba(130, 10, 209, 0.4);
         border-radius: 6px;
     }
+
+    @media (max-width: 768px) {
+        max-height: 280px;
+    }
 `;
 
 const LinhaItem = styled.div`
@@ -206,6 +231,11 @@ const ItemNome = styled.h3`
     text-overflow: ellipsis;
     white-space: nowrap;
     padding-right: 12px;
+    margin: 0;
+
+    @media (max-width: 480px) {
+        font-size: 0.92em;
+    }
 `;
 
 const ItemValor = styled.p`
@@ -216,6 +246,11 @@ const ItemValor = styled.p`
     font-weight: 600;
     white-space: nowrap;
     font-family: 'Roboto', sans-serif;
+    margin: 0;
+
+    @media (max-width: 480px) {
+        font-size: 0.92em;
+    }
 `;
 
 const ListaVazia = styled.p`
@@ -223,4 +258,5 @@ const ListaVazia = styled.p`
     font-size: 0.9em;
     text-align: center;
     padding: 16px 0;
+    margin: 0;
 `;

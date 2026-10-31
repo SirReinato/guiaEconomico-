@@ -113,9 +113,9 @@ const Container = styled.div`
     @media (max-width: 768px) {
         width: 100%;
         height: auto;
-        min-height: ${(props) => (props.$heightSm ? "auto" : "240px")};
-        padding: ${(props) => (props.$heightSm ? "16px 20px" : "20px 20px")};
-        border-radius: 18px;
+        min-height: ${(props) => (props.$heightSm ? "auto" : "200px")};
+        padding: ${(props) => (props.$heightSm ? "14px 16px" : "18px 18px")};
+        border-radius: 16px;
     }
 `;
 
@@ -124,14 +124,24 @@ const HeaderCard = styled.div`
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
-    gap: 12px;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+
+    @media (max-width: 480px) {
+        gap: 6px;
+    }
 `;
 
 export const Titulos = styled.h2`
-    font-size: ${(props) => (props.$titulo ? "2.2em" : "1.6em")};
-    letter-spacing: 0.06em;
+    font-size: ${(props) => (props.$titulo ? "2.2em" : "1.5em")};
+    letter-spacing: 0.04em;
     font-weight: bold;
-    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
     ${(props) =>
         props.$isNegative
             ? `
@@ -150,7 +160,9 @@ export const Titulos = styled.h2`
     `}
 
     @media (max-width: 768px) {
-        font-size: ${(props) => (props.$titulo ? "1.8em" : "1.35em")};
+        font-size: ${(props) => (props.$titulo ? "1.6em" : "1.25em")};
+        white-space: normal;
+        word-break: break-word;
     }
 `;
 
@@ -162,7 +174,8 @@ const Destaque = styled.h2`
     letter-spacing: 0.12em;
     white-space: nowrap;
     flex-shrink: 0;
-    /* Suavização das pílulas de valor: fundo com alta transparência (15%) e cor neon no texto */
+    margin: 0;
+    /* Suavização das pílulas de valor: fundo com alta transparência e cor neon */
     background: ${({ $isNegative, $bgAlert }) =>
         $isNegative
             ? "rgba(239, 68, 68, 0.15)"
@@ -179,6 +192,11 @@ const Destaque = styled.h2`
             : "none"};
     box-shadow: ${({ $isNegative }) =>
         $isNegative ? "0 0 10px rgba(239, 68, 68, 0.15)" : "none"};
+
+    @media (max-width: 480px) {
+        font-size: 1.15em;
+        padding: 5px 9px;
+    }
 
     @media (min-width: 769px) {
         padding: 9px 15px;
@@ -292,6 +310,7 @@ const TextTitulo = styled.h3`
     text-overflow: ellipsis;
     white-space: nowrap;
     padding-right: 12px;
+    margin: 0;
 `;
 
 const TextDescricao = styled.p`
@@ -302,4 +321,5 @@ const TextDescricao = styled.p`
     font-weight: 600;
     white-space: nowrap;
     font-family: 'Roboto', sans-serif;
+    margin: 0;
 `;

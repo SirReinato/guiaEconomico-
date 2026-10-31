@@ -191,48 +191,85 @@ export default function Saldos() {
             {/* Lista / Tabela de Receitas Editáveis */}
             <TabelaContainer>
                 {receitasExibidas.length > 0 ? (
-                    <TabelaReceitas>
-                        <thead>
-                            <tr>
-                                <Th>Data</Th>
-                                <Th>Descrição / Origem</Th>
-                                <Th>Tipo</Th>
-                                <Th>Valor</Th>
-                                <Th style={{ textAlign: "right" }}>Ações</Th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <>
+                        <TabelaReceitas>
+                            <thead>
+                                <tr>
+                                    <Th>Data</Th>
+                                    <Th>Descrição / Origem</Th>
+                                    <Th>Tipo</Th>
+                                    <Th>Valor</Th>
+                                    <Th style={{ textAlign: "right" }}>Ações</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {receitasExibidas.map((item) => {
+                                    const dataBR = item.data?.includes("-")
+                                        ? item.data.split("-").reverse().join("/")
+                                        : item.data;
+                                    return (
+                                        <TrItem key={item.id}>
+                                            <TdData>{dataBR}</TdData>
+                                            <TdDescricao>
+                                                {item.descricao || item.nome || "Entrada de Saldo"}
+                                            </TdDescricao>
+                                            <Td>
+                                                <BadgeTipo $tipo={item.tipo}>
+                                                    {formatarTipoLabel(item.tipo)}
+                                                </BadgeTipo>
+                                            </Td>
+                                            <TdValor>
+                                                +{formatCurrency(item.valor)}
+                                            </TdValor>
+                                            <TdAcoes>
+                                                <BotaoEditar
+                                                    type="button"
+                                                    onClick={() => setReceitaParaEditar(item)}
+                                                >
+                                                    ✏️ Editar
+                                                </BotaoEditar>
+                                            </TdAcoes>
+                                        </TrItem>
+                                    );
+                                })}
+                            </tbody>
+                        </TabelaReceitas>
+
+                        {/* Visão Alternativa Mobile em Cards Fluidos */}
+                        <ListaCardsReceitaMobile>
                             {receitasExibidas.map((item) => {
                                 const dataBR = item.data?.includes("-")
                                     ? item.data.split("-").reverse().join("/")
                                     : item.data;
                                 return (
-                                    <TrItem key={item.id}>
-                                        <TdData>{dataBR}</TdData>
-                                        <TdDescricao>
-                                            {item.descricao || item.nome || "Entrada de Saldo"}
-                                        </TdDescricao>
-                                        <Td>
-                                            <BadgeTipo $tipo={item.tipo}>
-                                                {formatarTipoLabel(item.tipo)}
-                                            </BadgeTipo>
-                                        </Td>
-                                        <TdValor>
-                                            +{formatCurrency(item.valor)}
-                                        </TdValor>
-                                        <TdAcoes>
+                                    <CardReceitaMobileItem key={item.id}>
+                                        <CardReceitaLinhaCima>
+                                            <span className="desc">
+                                                {item.descricao || item.nome || "Entrada de Saldo"}
+                                            </span>
+                                            <span className="valor">
+                                                +{formatCurrency(item.valor)}
+                                            </span>
+                                        </CardReceitaLinhaCima>
+                                        <CardReceitaLinhaBaixo>
+                                            <div className="metas">
+                                                <span className="data">📅 {dataBR}</span>
+                                                <BadgeTipo $tipo={item.tipo}>
+                                                    {formatarTipoLabel(item.tipo)}
+                                                </BadgeTipo>
+                                            </div>
                                             <BotaoEditar
                                                 type="button"
                                                 onClick={() => setReceitaParaEditar(item)}
                                             >
                                                 ✏️ Editar
                                             </BotaoEditar>
-                                        </TdAcoes>
-                                    </TrItem>
+                                        </CardReceitaLinhaBaixo>
+                                    </CardReceitaMobileItem>
                                 );
                             })}
-                        </tbody>
-                    </TabelaReceitas>
+                        </ListaCardsReceitaMobile>
+                    </>
                 ) : (
                     <EmptyState>
                         <EmptyIcon>💰</EmptyIcon>
@@ -549,6 +586,73 @@ const TabelaReceitas = styled.table`
 
     th, td {
         padding: 14px 18px;
+    }
+
+    @media (max-width: 680px) {
+        display: none;
+    }
+`;
+
+const ListaCardsReceitaMobile = styled.div`
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+
+    @media (max-width: 680px) {
+        display: flex;
+    }
+`;
+
+const CardReceitaMobileItem = styled.div`
+    background: #131b2e;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+`;
+
+const CardReceitaLinhaCima = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+
+    .desc {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #f8fafc;
+        word-break: break-word;
+    }
+
+    .valor {
+        font-weight: 800;
+        font-size: 1.05rem;
+        color: #34d399;
+        white-space: nowrap;
+    }
+`;
+
+const CardReceitaLinhaBaixo = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+
+    .metas {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+
+        .data {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
     }
 `;
 

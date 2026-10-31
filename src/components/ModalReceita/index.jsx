@@ -31,12 +31,13 @@ export default function ModalReceita({ onClose, onSubmit, dataPadrao, valorPadra
         reset();
         onClose();
     };
+
     return (
-        <Overlay>
-            <ModalContent>
+        <Overlay onClick={onClose}>
+            <ModalContent onClick={(e) => e.stopPropagation()}>
                 <Header>
                     <Titulos className="titulo">Nova receita</Titulos>
-                    <CloseButton onClick={onClose}>X</CloseButton>
+                    <CloseButton onClick={onClose} type="button">&times;</CloseButton>
                 </Header>
 
                 <Form onSubmit={handleSubmit(handleFormSubmit)}>
@@ -59,6 +60,7 @@ export default function ModalReceita({ onClose, onSubmit, dataPadrao, valorPadra
                         <option value="Outro">Ganho</option>
                         <option value="gastoNeguinha">PgNeguinha</option>
                     </select>
+
                     <Footer>
                         <button type="button" onClick={onClose}>
                             Cancelar
@@ -77,20 +79,26 @@ const Overlay = styled.div`
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 1100;
+    backdrop-filter: blur(4px);
+    padding: 12px;
+    box-sizing: border-box;
 `;
 
 const ModalContent = styled.div`
-    background: linear-gradient(to right, #0c3b70, #00b3ff);
-    padding: 24px;
-    border-radius: 16px;
-    width: 40%;
-    max-width: 60%;
-    border: 4px solid ${({ theme }) => theme.colors.secondary};
+    background: linear-gradient(135deg, #0c3b70, #0077b6);
+    padding: 22px 20px;
+    border-radius: 18px;
+    width: min(94vw, 440px);
+    max-height: 90dvh;
+    overflow-y: auto;
+    border: 2px solid ${({ theme }) => theme.colors.secondary || "#00b3ff"};
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+    box-sizing: border-box;
 `;
 
 const Header = styled.div`
@@ -99,20 +107,22 @@ const Header = styled.div`
     align-items: center;
     .titulo {
         color: ${({ theme }) => theme.colors.surface};
+        font-size: 1.25rem;
     }
 `;
 
 const CloseButton = styled.button`
-    background: ${({ theme }) => theme.colors.surface};
+    background: transparent;
     border: none;
-    border-radius: 50%;
-    padding: 4px 12px;
-    color: ${({ theme }) => theme.colors.secondary};
-    font-size: 2rem;
+    color: ${({ theme }) => theme.colors.surface};
+    font-size: 1.8rem;
     cursor: pointer;
+    line-height: 1;
+    padding: 0 6px;
+    transition: all 0.2s;
     &:hover {
-        background: ${({ theme }) => theme.colors.secondary};
-        color: ${({ theme }) => theme.colors.surface};
+        transform: scale(1.15);
+        color: #ff6b6b;
     }
 `;
 
@@ -125,17 +135,21 @@ const Form = styled.form`
     label {
         color: ${({ theme }) => theme.colors.surface};
         font-weight: bold;
-        letter-spacing: 0.9px;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
     }
 
     input,
     select {
-        padding: 8px;
-        border-radius: 6px;
-        border: 1px solid #000;
-        background-color: ${({ theme }) => theme.colors.background};
-        color: ${({ theme }) => theme.colors.surface};
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background-color: ${({ theme }) => theme.colors.background || "#040812"};
+        color: ${({ theme }) => theme.colors.surface || "#ffffff"};
+        font-size: 16px;
+        box-sizing: border-box;
     }
+
     input[type="date"]::-webkit-calendar-picker-indicator {
         filter: invert(1);
         cursor: pointer;
@@ -143,24 +157,29 @@ const Form = styled.form`
 `;
 
 const Footer = styled.div`
-    margin-top: 24px;
+    margin-top: 20px;
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
 
     button {
-        padding: 8px 16px;
-        border-radius: 6px;
+        padding: 10px 18px;
+        border-radius: 8px;
         border: none;
         cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
         background-color: ${({ theme }) => theme.colors.surface};
         color: ${({ theme }) => theme.colors.secondary};
+        transition: all 0.2s;
+
         &:hover {
             background: ${({ theme }) => theme.colors.primary};
             color: ${({ theme }) => theme.colors.surface};
         }
         &:first-child {
-            background-color: ${({ theme }) => theme.colors.cardsBg};
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
         }
     }
 `;

@@ -11,6 +11,13 @@ const GlobalStyle = createGlobalStyle`
     font-family: "DynaPuff", system-ui;
     background-color: ${({ theme }) => theme.colors.background};
     color: ${({ theme }) => theme.colors.textPrimary};
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Evita zoom automático agressivo no iOS e melhora conforto de toque */
+  input, select, textarea {
+    font-size: 16px;
   }
 
   img, video {

@@ -51,11 +51,11 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
     };
 
     return (
-        <Overlay>
-            <ModalContent>
+        <Overlay onClick={onClose}>
+            <ModalContent onClick={(e) => e.stopPropagation()}>
                 <Header>
                     <Titulos className="titulo">Adicionar Novo Gasto</Titulos>
-                    <CloseButton onClick={onClose}>X</CloseButton>
+                    <CloseButton onClick={onClose} type="button">&times;</CloseButton>
                 </Header>
 
                 <Form onSubmit={handleSubmit(handleFormSubmit)}>
@@ -98,33 +98,6 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
                         </InfoMozi>
                     )}
 
-                    <label>Parcelas</label>
-                    <select {...register("parcelas")}>
-                        <option value="1">1x (À vista)</option>
-                        <option value="2">2x</option>
-                        <option value="3">3x</option>
-                        <option value="4">4x</option>
-                        <option value="5">5x</option>
-                        <option value="6">6x</option>
-                        <option value="7">7x</option>
-                        <option value="8">8x</option>
-                        <option value="9">9x</option>
-                        <option value="10">10x</option>
-                        <option value="11">11x</option>
-                        <option value="12">12x</option>
-                        <option value="18">18x</option>
-                        <option value="24">24x</option>
-                    </select>
-
-                    {numParcelas > 1 && valorNumerico > 0 && (
-                        <InfoParcelas>
-                            {numParcelas}x de R${" "}
-                            {(valorNumerico / numParcelas)
-                                .toFixed(2)
-                                .replace(".", ",")}
-                        </InfoParcelas>
-                    )}
-
                     <label>Tipo</label>
                     <select {...register("tipo", { required: true })}>
                         <option value="Essencial">Essencial</option>
@@ -147,8 +120,7 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
                             <label>Nome da Categoria Personalizada</label>
                             <input
                                 type="text"
-                                placeholder="Digite o nome da categoria (ex: Dentista, Jogos, Livros...)"
-                                autoFocus
+                                placeholder="Ex: Livros, Farmácia..."
                                 {...register("categoriaPersonalizada", {
                                     required: categoriaWatch === "OUTRO",
                                 })}
@@ -159,11 +131,37 @@ export default function ModalNovoGasto({ onClose, onSubmit }) {
                     <label>Cartão</label>
                     <select {...register("cartao", { required: true })}>
                         {cartoesDisponiveis.map((c) => (
-                            <option key={c.id} value={c.nome || c.id}>
-                                {c.icone || "💳"} {c.nome || c.id}
+                            <option key={c.id || c.nome} value={c.nome || c.id}>
+                                {c.icone} {c.nome}
                             </option>
                         ))}
                     </select>
+
+                    <label>Parcelas</label>
+                    <select {...register("parcelas")}>
+                        <option value="1">À vista (1x)</option>
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                        <option value="6">6x</option>
+                        <option value="7">7x</option>
+                        <option value="8">8x</option>
+                        <option value="9">9x</option>
+                        <option value="10">10x</option>
+                        <option value="11">11x</option>
+                        <option value="12">12x</option>
+                    </select>
+
+                    {numParcelas > 1 && valorNumerico > 0 && (
+                        <InfoParcelas>
+                            Serão lançadas {numParcelas} parcelas de ~R${" "}
+                            {(valorNumerico / numParcelas)
+                                .toFixed(2)
+                                .replace(".", ",")}{" "}
+                            nos próximos meses.
+                        </InfoParcelas>
+                    )}
 
                     <Footer>
                         <button type="button" onClick={onClose}>
@@ -183,27 +181,33 @@ const Overlay = styled.div`
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 1100;
+    backdrop-filter: blur(4px);
+    padding: 12px;
+    box-sizing: border-box;
 `;
 
 const ModalContent = styled.div`
-    background: linear-gradient(to right, #0c3b70, #00b3ff);
-    padding: 24px;
-    border-radius: 16px;
-    width: 40%;
-    max-width: 60%;
-    border: 4px solid ${({ theme }) => theme.colors.secondary};
+    background: linear-gradient(135deg, #0c3b70, #0077b6);
+    padding: 22px 20px;
+    border-radius: 18px;
+    width: min(94vw, 480px);
+    max-height: 90dvh;
+    overflow-y: auto;
+    border: 2px solid ${({ theme }) => theme.colors.secondary || "#00b3ff"};
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+    box-sizing: border-box;
 
-    @media (max-width: 768px) {
-        width: 92%;
-        max-width: 95%;
-        padding: 16px;
-        max-height: 90vh;
-        overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #00b3ff transparent;
+
+    @media (max-width: 480px) {
+        padding: 16px 14px;
+        border-radius: 16px;
     }
 `;
 
@@ -213,20 +217,23 @@ const Header = styled.div`
     align-items: center;
     .titulo {
         color: ${({ theme }) => theme.colors.surface};
+        font-size: 1.25rem;
     }
 `;
 
 const CloseButton = styled.button`
-    background: ${({ theme }) => theme.colors.surface};
+    background: transparent;
     border: none;
-    border-radius: 50%;
-    padding: 4px 12px;
-    color: ${({ theme }) => theme.colors.secondary};
-    font-size: 2rem;
+    color: ${({ theme }) => theme.colors.surface};
+    font-size: 1.8rem;
     cursor: pointer;
+    line-height: 1;
+    padding: 0 6px;
+    transition: all 0.2s;
+
     &:hover {
-        background: ${({ theme }) => theme.colors.secondary};
-        color: ${({ theme }) => theme.colors.surface};
+        transform: scale(1.15);
+        color: #ff6b6b;
     }
 `;
 
@@ -239,17 +246,26 @@ const Form = styled.form`
     label {
         color: ${({ theme }) => theme.colors.surface};
         font-weight: bold;
-        letter-spacing: 0.9px;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
     }
 
     input,
     select {
-        padding: 8px;
-        border-radius: 6px;
-        border: 1px solid #000;
-        background-color: ${({ theme }) => theme.colors.background};
-        color: ${({ theme }) => theme.colors.surface};
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background-color: ${({ theme }) => theme.colors.background || "#040812"};
+        color: ${({ theme }) => theme.colors.surface || "#ffffff"};
+        font-size: 16px;
+        box-sizing: border-box;
+
+        &:focus {
+            outline: none;
+            border-color: #00b3ff;
+        }
     }
+
     input[type="date"]::-webkit-calendar-picker-indicator {
         filter: invert(1);
         cursor: pointer;
@@ -257,32 +273,37 @@ const Form = styled.form`
 `;
 
 const Footer = styled.div`
-    margin-top: 24px;
+    margin-top: 20px;
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
 
     button {
-        padding: 8px 16px;
-        border-radius: 6px;
+        padding: 10px 18px;
+        border-radius: 8px;
         border: none;
         cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
         background-color: ${({ theme }) => theme.colors.surface};
         color: ${({ theme }) => theme.colors.secondary};
+        transition: all 0.2s;
+
         &:hover {
             background: ${({ theme }) => theme.colors.primary};
             color: ${({ theme }) => theme.colors.surface};
         }
         &:first-child {
-            background-color: ${({ theme }) => theme.colors.cardsBg};
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
         }
     }
 `;
 
 const InfoParcelas = styled.div`
     color: #e0f2fe;
-    font-size: 0.9em;
-    font-weight: bold;
+    font-size: 0.85rem;
+    font-weight: 600;
     background: rgba(0, 0, 0, 0.25);
     padding: 8px 12px;
     border-radius: 6px;
@@ -293,8 +314,8 @@ const InfoParcelas = styled.div`
 const InfoMozi = styled.div`
     color: #fdf2f8;
     background: linear-gradient(135deg, rgba(219, 39, 119, 0.3), rgba(147, 51, 234, 0.3));
-    font-size: 0.9em;
-    font-weight: bold;
+    font-size: 0.85rem;
+    font-weight: 600;
     padding: 8px 12px;
     border-radius: 6px;
     text-align: center;
@@ -322,7 +343,7 @@ const CampoPersonalizado = styled.div`
         border: 1px solid #00b3ff;
         border-radius: 6px;
         padding: 8px;
-        font-size: 0.95em;
+        font-size: 16px;
 
         &:focus {
             outline: none;

@@ -9,7 +9,7 @@ export default function PlanoPrincipalDetalhado({
     contextoFinanceiro,
     onTrocarCenario,
 }) {
-    const [modoExibicao, setModoExibicao] = useState("tabela"); // "tabela" | "cards"
+    const [modoExibicao, setModoExibicao] = useState(() => (typeof window !== "undefined" && window.innerWidth <= 680 ? "cards" : "tabela"));
     const [filtroTexto, setFiltroTexto] = useState("");
     const [expandido, setExpandido] = useState(false);
 
@@ -307,6 +307,12 @@ const CardPrincipalContainer = styled.section`
     position: relative;
     overflow: hidden;
 
+    @media (max-width: 680px) {
+        padding: 16px 12px;
+        gap: 14px;
+        border-radius: 14px;
+    }
+
     &::before {
         content: "";
         position: absolute;
@@ -375,6 +381,11 @@ const BotaoTrocarCenario = styled.button`
         background: rgba(255, 255, 255, 0.15);
         color: #fff;
         transform: translateY(-1px);
+    }
+
+    @media (max-width: 680px) {
+        width: 100%;
+        text-align: center;
     }
 `;
 
