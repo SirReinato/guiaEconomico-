@@ -233,92 +233,94 @@ export function GastosProvider({ children }) {
     };
 
     // Intervalo de fatura (atual, anterior, próximo)
-    function getIntervaloFatura(
-        cartao,
-        referencia = mesReferencia || new Date(),
-        ciclo = "atual"
-    ) {
-        const ref = referencia || mesReferencia || new Date();
-        const ano = ref.getFullYear();
-        const mes = ref.getMonth();
-        const fechamento = fechamentosPorCartao[cartao] ?? 30;
+    const getIntervaloFatura = useCallback(
+        (cartao, referencia = mesReferencia || new Date(), ciclo = "atual") => {
+            const ref = referencia || mesReferencia || new Date();
+            const ano = ref.getFullYear();
+            const mes = ref.getMonth();
+            const fechamento = fechamentosPorCartao[cartao] ?? 30;
 
-        if (ciclo === "atual") {
-            return {
-                inicio: new Date(ano, mes - 1, fechamento + 1, 0, 0, 0, 0),
-                fim: new Date(ano, mes, fechamento, 23, 59, 59, 999),
-            };
-        }
+            if (ciclo === "atual") {
+                return {
+                    inicio: new Date(ano, mes - 1, fechamento + 1, 0, 0, 0, 0),
+                    fim: new Date(ano, mes, fechamento, 23, 59, 59, 999),
+                };
+            }
 
-        if (ciclo === "anterior") {
-            return {
-                inicio: new Date(ano, mes - 2, fechamento + 1, 0, 0, 0, 0),
-                fim: new Date(ano, mes - 1, fechamento, 23, 59, 59, 999),
-            };
-        }
+            if (ciclo === "anterior") {
+                return {
+                    inicio: new Date(ano, mes - 2, fechamento + 1, 0, 0, 0, 0),
+                    fim: new Date(ano, mes - 1, fechamento, 23, 59, 59, 999),
+                };
+            }
 
-        if (ciclo === "proximo") {
-            return {
-                inicio: new Date(ano, mes, fechamento + 1, 0, 0, 0, 0),
-                fim: new Date(ano, mes + 1, fechamento, 23, 59, 59, 999),
-            };
-        }
+            if (ciclo === "proximo") {
+                return {
+                    inicio: new Date(ano, mes, fechamento + 1, 0, 0, 0, 0),
+                    fim: new Date(ano, mes + 1, fechamento, 23, 59, 59, 999),
+                };
+            }
 
-        return { inicio: null, fim: null };
-    }
+            return { inicio: null, fim: null };
+        },
+        [fechamentosPorCartao, mesReferencia]
+    );
 
-    const parseDataSegura = (dataStr) => {
+    const parseDataSegura = useCallback((dataStr) => {
         if (!dataStr) return null;
         return new Date(dataStr.includes("T") ? dataStr : `${dataStr}T12:00:00`);
-    };
+    }, []);
 
     // Gastos de um ciclo específico
-    function getGastosDoCiclo(cartao, ciclo = "atual", ref = mesReferencia) {
-        if (isIngrid && (cartao === "Cartões do Renato" || cartao === "Cartões do Renato (A Pagar)")) {
-            // Retorna os gastos lançados pelo Renato com responsavel mozi ou dividido
-            const { inicio, fim } = getIntervaloFatura("Nubank", ref, ciclo);
-            return gastosReembolsoRenato
-                .filter((g) => {
-                    const data = parseDataSegura(g.data);
-                    return data && data >= inicio && data <= fim;
-                })
-                .map((g) => {
-                    const valorTotal = parseCurrency(g.valor);
-                    const fator = g.responsavel === "dividido" ? 0.5 : 1.0;
-                    return {
-                        ...g,
-                        cartaoOriginal: g.cartao,
-                        cartao: "Cartões do Renato",
-                        valorCalculado: valorTotal * fator,
-                        descricaoExibicao: `${g.tipo || "Gasto"} (Pago no ${g.cartao} pelo Renato)`,
-                    };
-                });
-        }
-
-        if (isIngrid && cartao === "Itaú") {
-            const chave = getChaveMes(ref);
-            const valorItau = faturasItau[chave] || 0;
-            if (valorItau > 0) {
-                return [
-                    {
-                        id: `itau-${chave}`,
-                        cartao: "Itaú",
-                        tipo: "Fatura Total Itaú",
-                        data: `${chave}-10`,
-                        valor: valorItau,
-                        responsavel: "meu",
-                    },
-                ];
+    const getGastosDoCiclo = useCallback(
+        (cartao, ciclo = "atual", ref = mesReferencia) => {
+            if (isIngrid && (cartao === "Cartões do Renato" || cartao === "Cartões do Renato (A Pagar)")) {
+                // Retorna os gastos lançados pelo Renato com responsavel mozi ou dividido
+                const { inicio, fim } = getIntervaloFatura("Nubank", ref, ciclo);
+                return gastosReembolsoRenato
+                    .filter((g) => {
+                        const data = parseDataSegura(g.data);
+                        return data && data >= inicio && data <= fim;
+                    })
+                    .map((g) => {
+                        const valorTotal = parseCurrency(g.valor);
+                        const fator = g.responsavel === "dividido" ? 0.5 : 1.0;
+                        return {
+                            ...g,
+                            cartaoOriginal: g.cartao,
+                            cartao: "Cartões do Renato",
+                            valorCalculado: valorTotal * fator,
+                            descricaoExibicao: `${g.tipo || "Gasto"} (Pago no ${g.cartao} pelo Renato)`,
+                        };
+                    });
             }
-            return [];
-        }
 
-        const { inicio, fim } = getIntervaloFatura(cartao, ref, ciclo);
-        return gastos.filter((g) => {
-            const data = parseDataSegura(g.data);
-            return g.cartao === cartao && data && data >= inicio && data <= fim;
-        });
-    }
+            if (isIngrid && cartao === "Itaú") {
+                const chave = getChaveMes(ref);
+                const valorItau = faturasItau[chave] || 0;
+                if (valorItau > 0) {
+                    return [
+                        {
+                            id: `itau-${chave}`,
+                            cartao: "Itaú",
+                            tipo: "Fatura Total Itaú",
+                            data: `${chave}-10`,
+                            valor: valorItau,
+                            responsavel: "meu",
+                        },
+                    ];
+                }
+                return [];
+            }
+
+            const { inicio, fim } = getIntervaloFatura(cartao, ref, ciclo);
+            return gastos.filter((g) => {
+                const data = parseDataSegura(g.data);
+                return g.cartao === cartao && data && data >= inicio && data <= fim;
+            });
+        },
+        [isIngrid, getIntervaloFatura, gastosReembolsoRenato, parseDataSegura, getChaveMes, faturasItau, gastos, mesReferencia]
+    );
 
     // Fatura por cartão
     function getFaturaPorCartao(ciclo = "atual", ref = mesReferencia) {
@@ -454,6 +456,80 @@ export function GastosProvider({ children }) {
         };
     }
 
+    /**
+     * Retorna o ajuste de fatura ativo para um cartão e ciclo específicos
+     */
+    const getAjusteFaturaCartao = useCallback(
+        (cartao, ciclo = "atual", ref = mesReferencia) => {
+            const itens = getGastosDoCiclo(cartao, ciclo, ref) || [];
+            return itens.find((g) => g.origem === "ajuste_fatura") || null;
+        },
+        [getGastosDoCiclo, mesReferencia]
+    );
+
+    /**
+     * Salva, atualiza ou remove um ajuste de fatura para bater certinho com o total real
+     */
+    const salvarAjusteFaturaCartao = async ({
+        cartao,
+        ciclo = "atual",
+        valorAjuste,
+        tipo = "Essencial",
+        descricao = "Ajuste de Fatura",
+    }) => {
+        const valorNum = parseCurrency(valorAjuste);
+        const { fim } = getIntervaloFatura(cartao, mesReferencia, ciclo);
+
+        if (!fim) {
+            console.error("Não foi possível determinar o intervalo da fatura para o ajuste.");
+            return null;
+        }
+
+        const ano = fim.getFullYear();
+        const mes = String(fim.getMonth() + 1).padStart(2, "0");
+        const dia = String(fim.getDate()).padStart(2, "0");
+        const dataAjuste = `${ano}-${mes}-${dia}`;
+
+        const itensCiclo = getGastosDoCiclo(cartao, ciclo, mesReferencia) || [];
+        const ajusteExistente = itensCiclo.find((g) => g.origem === "ajuste_fatura");
+
+        // Se o valor for 0, remove o ajuste se existir
+        if (Math.abs(valorNum) < 0.001) {
+            if (ajusteExistente) {
+                await removerGasto(ajusteExistente.id);
+            }
+            return null;
+        }
+
+        const payload = {
+            data: dataAjuste,
+            valor: valorNum,
+            cartao,
+            categoria: "Ajuste de Fatura",
+            tipo: tipo || "Essencial",
+            responsavel: "meu",
+            descricao: descricao?.trim() || "Ajuste de Fatura",
+            origem: "ajuste_fatura",
+        };
+
+        if (ajusteExistente) {
+            const atualizado = await atualizarGastoAPI(ajusteExistente.id, payload, perfil);
+            if (atualizado) {
+                setGastos((prev) =>
+                    prev.map((g) => (g.id === ajusteExistente.id ? { ...g, ...atualizado } : g))
+                );
+                return atualizado;
+            }
+        } else {
+            const novo = await adicionarGastoAPI(payload, perfil);
+            if (novo) {
+                setGastos((prev) => [...prev, novo]);
+                return novo;
+            }
+        }
+        return null;
+    };
+
     return (
         <GastosContext.Provider
             value={{
@@ -477,6 +553,8 @@ export function GastosProvider({ children }) {
                 salvarFaturaItauMes,
                 gastosReembolsoRenato,
                 chaveMesAtual: getChaveMes(mesReferencia),
+                salvarAjusteFaturaCartao,
+                getAjusteFaturaCartao,
             }}
         >
             {children}

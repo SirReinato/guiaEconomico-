@@ -9,6 +9,7 @@ import { useResumoFinanceiro } from "../../hooks/useResumoFinanceiro";
 import ModalEditarGasto from "../../components/ModalEditarGasto";
 import ModalGerenciarCartoes from "../../components/ModalGerenciarCartoes";
 import ModalFaturaItau from "../../components/ModalFaturaItau";
+import ModalAjusteFaturaCartao from "../../components/ModalAjusteFaturaCartao";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Cartoes() {
@@ -38,6 +39,7 @@ export default function Cartoes() {
     const [gastoParaEditar, setGastoParaEditar] = useState(null);
     const [modalCartoesAberto, setModalCartoesAberto] = useState(false);
     const [modalItauAberto, setModalItauAberto] = useState(false);
+    const [modalAjusteAberto, setModalAjusteAberto] = useState(false);
 
     const { saldoLiquido } = useResumoFinanceiro();
     const fatura = getFaturaPorCartao(ciclo, mesReferencia);
@@ -58,7 +60,7 @@ export default function Cartoes() {
         });
     }, [cartoesAtivos, fatura]);
 
-    // Coleta todos os gastos do ciclo para os cartões ativos
+    // Coleta todos os gastos do ciclo para os cartões ativos e FIXA ajustes no topo
     const todosGastosDoCiclo = useMemo(() => {
         const todos = [];
         (cartoesAtivos || []).forEach((c) => {
@@ -68,6 +70,12 @@ export default function Cartoes() {
         });
 
         return todos.sort((a, b) => {
+            // Fixa ajustes de fatura NO TOPO da lista!
+            const isAjusteA = a.origem === "ajuste_fatura";
+            const isAjusteB = b.origem === "ajuste_fatura";
+            if (isAjusteA && !isAjusteB) return -1;
+            if (!isAjusteA && isAjusteB) return 1;
+
             const dataA = new Date(a.data?.includes("T") ? a.data : `${a.data}T12:00:00`);
             const dataB = new Date(b.data?.includes("T") ? b.data : `${b.data}T12:00:00`);
             return dataB - dataA;
@@ -176,10 +184,14 @@ export default function Cartoes() {
                 )}
             </BarraStatusMes>
 
-            {/* Linha de Ações: Gerenciar Cartões e Ajuste Fatura Itaú */}
+            {/* Linha de Ações: Ajustar para dar certinho, Gerenciar Cartões e Fatura Itaú */}
             <BarraAcoesTop>
+                <BotaoAjustarFatura onClick={() => setModalAjusteAberto(true)}>
+                    🎯 Ajustar para dar certinho
+                </BotaoAjustarFatura>
+
                 <BotaoGerenciarCartoes onClick={() => setModalCartoesAberto(true)}>
-                    ⚙️ {isIngrid ? "+ Gerenciar / Adicionar Cartões" : "Gerenciar Cartões"}
+                    ⚙️ {isIngrid ? "+ Gerenciar Cartões" : "Gerenciar Cartões"}
                 </BotaoGerenciarCartoes>
 
                 <BotaoItauAcao onClick={() => setModalItauAberto(true)}>
@@ -345,6 +357,7 @@ export default function Cartoes() {
             <ListaGastos>
                 {gastosFiltrados.length > 0 ? (
                     gastosFiltrados.map((gasto) => {
+                        const isAjuste = gasto.origem === "ajuste_fatura";
                         const valorExibicao =
                             gasto.valorCalculado !== undefined
                                 ? gasto.valorCalculado
@@ -355,41 +368,119 @@ export default function Cartoes() {
                             gasto.cartao === "Itaú" ||
                             gasto.id?.startsWith?.("itau-");
 
+                        if (isAjuste) {
+                            return (
+                                <ItemGastoAjuste key={gasto.id}>
+                                    <AjusteTopoLinha>
+                                        <BadgeAjusteDestaque>
+                                            🎯 Ajuste de Fatura
+                                        </BadgeAjusteDestaque>
+                                        <ValorAjusteDestaque $isPositivo={valorExibicao >= 0}>
+                                            {valorExibicao > 0 ? `+ R$ ${valorExibicao.toFixed(2)}` : `- R$ ${Math.abs(valorExibicao).toFixed(2)}`}
+                                        </ValorAjusteDestaque>
+                                    </AjusteTopoLinha>
+                                    <AjusteDetalhesLinha>
+                                        <InfoMetaAjuste>
+                                            <span className="badge-cartao">💳 {gasto.cartao}</span>
+                                            <span className="badge-data">📅 {gasto.data}</span>
+                                            <span className="badge-tipo">🏷️ {gasto.tipo}</span>
+                                            <span className="desc">({gasto.descricao || "Ajuste para dar certinho"})</span>
+                                        </InfoMetaAjuste>
+                                        <BotaoReajustar onClick={() => setModalAjusteAberto(true)}>
+                                            Reajustar
+                                        </BotaoReajustar>
+                                    </AjusteDetalhesLinha>
+                                </ItemGastoAjuste>
+                            );
+                        }
+
                         return (
                             <ItemGasto key={gasto.id}>
-                                <Coluna>{gasto.data}</Coluna>
-                                <Coluna>
-                                    R$ {valorExibicao.toFixed(2)}
-                                </Coluna>
-                                <Coluna>{gasto.cartao}</Coluna>
-                                <Coluna tipo={gasto.tipo}>{gasto.tipo}</Coluna>
-                                <Coluna>
-                                    {gasto.descricaoExibicao || gasto.categoria}
-                                    {gasto.parcela ? ` (${gasto.parcela})` : ""}
-                                    {gasto.responsavel === "mozi" && (
-                                        <BadgeResponsavel $tipo="mozi">
-                                            {isIngrid ? "💕 100% a Pagar" : "💕 Mozi"}
-                                        </BadgeResponsavel>
+                                {/* Visual Desktop em Colunas */}
+                                <ItemGastoDesktop>
+                                    <Coluna>{gasto.data}</Coluna>
+                                    <Coluna>
+                                        R$ {valorExibicao.toFixed(2)}
+                                    </Coluna>
+                                    <Coluna>{gasto.cartao}</Coluna>
+                                    <Coluna tipo={gasto.tipo}>{gasto.tipo}</Coluna>
+                                    <Coluna>
+                                        {gasto.descricaoExibicao || gasto.categoria}
+                                        {gasto.parcela ? ` (${gasto.parcela})` : ""}
+                                        {gasto.responsavel === "mozi" && (
+                                            <BadgeResponsavel $tipo="mozi">
+                                                {isIngrid ? "💕 100% a Pagar" : "💕 Mozi"}
+                                            </BadgeResponsavel>
+                                        )}
+                                        {gasto.responsavel === "dividido" && (
+                                            <BadgeResponsavel $tipo="dividido">
+                                                🤝 50% Dividido
+                                            </BadgeResponsavel>
+                                        )}
+                                    </Coluna>
+                                    {!ehGastoIntegrado ? (
+                                        <BotaoEditar onClick={() => setGastoParaEditar(gasto)}>
+                                            Editar
+                                        </BotaoEditar>
+                                    ) : gasto.cartao === "Itaú" ? (
+                                        <BotaoEditar onClick={() => setModalItauAberto(true)}>
+                                            Ajustar
+                                        </BotaoEditar>
+                                    ) : (
+                                        <BadgeIntegradoItem>
+                                            Integrado
+                                        </BadgeIntegradoItem>
                                     )}
-                                    {gasto.responsavel === "dividido" && (
-                                        <BadgeResponsavel $tipo="dividido">
-                                            🤝 50% Dividido
-                                        </BadgeResponsavel>
-                                    )}
-                                </Coluna>
-                                {!ehGastoIntegrado ? (
-                                    <BotaoEditar onClick={() => setGastoParaEditar(gasto)}>
-                                        Editar
-                                    </BotaoEditar>
-                                ) : gasto.cartao === "Itaú" ? (
-                                    <BotaoEditar onClick={() => setModalItauAberto(true)}>
-                                        Ajustar
-                                    </BotaoEditar>
-                                ) : (
-                                    <BadgeIntegradoItem>
-                                        Integrado
-                                    </BadgeIntegradoItem>
-                                )}
+                                </ItemGastoDesktop>
+
+                                {/* Visual Mobile Otimizado em 2 Linhas Fluidas */}
+                                <ItemGastoMobile>
+                                    <ItemMobileLinhaCima>
+                                        <DescricaoMobile>
+                                            <span className="categoria">
+                                                {gasto.descricaoExibicao || gasto.categoria}
+                                            </span>
+                                            {gasto.parcela && <span className="parcela">({gasto.parcela})</span>}
+                                        </DescricaoMobile>
+                                        <ValorMobile>
+                                            R$ {valorExibicao.toFixed(2)}
+                                        </ValorMobile>
+                                    </ItemMobileLinhaCima>
+
+                                    <ItemMobileLinhaBaixo>
+                                        <BadgesMobile>
+                                            <span className="badge-item badge-cartao">{gasto.cartao}</span>
+                                            <span className="badge-item badge-data">{gasto.data}</span>
+                                            <span className={`badge-item badge-tipo tipo-${gasto.tipo?.toLowerCase()}`}>
+                                                {gasto.tipo}
+                                            </span>
+                                            {gasto.responsavel === "mozi" && (
+                                                <BadgeResponsavel $tipo="mozi">
+                                                    {isIngrid ? "💕 100%" : "💕 Mozi"}
+                                                </BadgeResponsavel>
+                                            )}
+                                            {gasto.responsavel === "dividido" && (
+                                                <BadgeResponsavel $tipo="dividido">
+                                                    🤝 50%
+                                                </BadgeResponsavel>
+                                            )}
+                                        </BadgesMobile>
+
+                                        {!ehGastoIntegrado ? (
+                                            <BotaoEditarMobile onClick={() => setGastoParaEditar(gasto)}>
+                                                Editar
+                                            </BotaoEditarMobile>
+                                        ) : gasto.cartao === "Itaú" ? (
+                                            <BotaoEditarMobile onClick={() => setModalItauAberto(true)}>
+                                                Ajustar
+                                            </BotaoEditarMobile>
+                                        ) : (
+                                            <BadgeIntegradoItem>
+                                                Integrado
+                                            </BadgeIntegradoItem>
+                                        )}
+                                    </ItemMobileLinhaBaixo>
+                                </ItemGastoMobile>
                             </ItemGasto>
                         );
                     })
@@ -424,9 +515,21 @@ export default function Cartoes() {
                     onClose={() => setModalItauAberto(false)}
                 />
             )}
+
+            {modalAjusteAberto && (
+                <ModalAjusteFaturaCartao
+                    cartaoInicial={cartaoSelecionado}
+                    ciclo={ciclo}
+                    onClose={() => setModalAjusteAberto(false)}
+                />
+            )}
         </ContainerLista>
     );
 }
+
+/* ===============================================================
+   STYLED COMPONENTS - RESPONSIVIDADE TOTAL & DESIGN SYSTEM NEON
+   =============================================================== */
 
 const ContainerLista = styled.div`
     display: flex;
@@ -438,6 +541,14 @@ const ContainerLista = styled.div`
     padding: 8px;
     border-radius: 16px;
     background-color: ${({ theme }) => theme.colors.cardsBg};
+    box-sizing: border-box;
+
+    @media (max-width: 768px) {
+        height: auto;
+        min-height: calc(100vh - 120px);
+        padding: 8px 4px 80px 4px;
+        background-color: transparent;
+    }
 `;
 
 const BarraAcoesTop = styled.div`
@@ -446,6 +557,34 @@ const BarraAcoesTop = styled.div`
     margin-bottom: 6px;
     flex-wrap: wrap;
     justify-content: center;
+    width: 100%;
+`;
+
+const BotaoAjustarFatura = styled.button`
+    background: linear-gradient(135deg, rgba(130, 10, 209, 0.3), rgba(0, 179, 255, 0.3));
+    border: 1px solid rgba(0, 179, 255, 0.55);
+    color: #38bdf8;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 7px 16px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 12px rgba(0, 179, 255, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &:hover {
+        background: linear-gradient(135deg, rgba(130, 10, 209, 0.5), rgba(0, 179, 255, 0.5));
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 0 18px rgba(0, 179, 255, 0.45);
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
 `;
 
 const BotaoGerenciarCartoes = styled.button`
@@ -486,10 +625,10 @@ const BotaoItauAcao = styled.button`
 
 const ListaGastos = styled.div`
     width: 100%;
-    margin-top: 16px;
+    margin-top: 14px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     box-sizing: border-box;
     overflow-y: auto;
     padding-right: 4px;
@@ -501,26 +640,237 @@ const ListaGastos = styled.div`
         width: 6px;
     }
 
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
     &::-webkit-scrollbar-thumb {
         background-color: #820ad1;
         border-radius: 8px;
-        border: 2px solid transparent;
-        background-clip: content-box;
+    }
+
+    @media (max-width: 768px) {
+        overflow-y: visible;
+        padding-right: 0;
     }
 `;
 
 const ItemGasto = styled.div`
+    background-color: ${({ theme }) => theme.colors.cardItemBg || "#0d1b2a"};
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+        border-color: rgba(130, 10, 209, 0.4);
+    }
+`;
+
+const ItemGastoDesktop = styled.div`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: ${({ theme }) => theme.colors.cardItemBg || "#0d1b2a"};
     padding: 12px 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    box-sizing: border-box;
+
+    @media (max-width: 680px) {
+        display: none;
+    }
+`;
+
+const ItemGastoMobile = styled.div`
+    display: none;
+    flex-direction: column;
+    padding: 12px 14px;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+
+    @media (max-width: 680px) {
+        display: flex;
+    }
+`;
+
+const ItemMobileLinhaCima = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+`;
+
+const DescricaoMobile = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    .categoria {
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: #ffffff;
+        word-break: break-word;
+    }
+
+    .parcela {
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+`;
+
+const ValorMobile = styled.div`
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+`;
+
+const ItemMobileLinhaBaixo = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+`;
+
+const BadgesMobile = styled.div`
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+
+    .badge-item {
+        font-size: 0.72rem;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #cbd5e1;
+    }
+
+    .badge-cartao {
+        color: #c084fc;
+        font-weight: 600;
+    }
+
+    .badge-data {
+        color: #94a3b8;
+    }
+
+    .badge-tipo {
+        font-weight: 600;
+        &.tipo-essencial {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+        &.tipo-desejo {
+            color: #f9c74f;
+            background: rgba(249, 199, 79, 0.1);
+        }
+        &.tipo-poupança,
+        &.tipo-poupanca {
+            color: #43aa8b;
+            background: rgba(67, 170, 139, 0.1);
+        }
+    }
+`;
+
+const BotaoEditarMobile = styled.button`
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    font-weight: 600;
+
+    &:active {
+        background: rgba(130, 10, 209, 0.3);
+    }
+`;
+
+/* Item Destaque para Ajuste de Fatura (Fixado no Topo) */
+const ItemGastoAjuste = styled.div`
+    background: linear-gradient(135deg, rgba(130, 10, 209, 0.18), rgba(0, 179, 255, 0.12));
+    border: 1px solid rgba(0, 179, 255, 0.45);
+    box-shadow: 0 0 16px rgba(0, 179, 255, 0.15);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.2s ease;
+
+    &:hover {
+        border-color: rgba(0, 179, 255, 0.7);
+        box-shadow: 0 0 20px rgba(0, 179, 255, 0.25);
+    }
+`;
+
+const AjusteTopoLinha = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+`;
+
+const BadgeAjusteDestaque = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #820ad1, #0284c7);
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+`;
+
+const ValorAjusteDestaque = styled.span`
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: ${({ $isPositivo }) => ($isPositivo ? "#38bdf8" : "#fb7185")};
+    text-shadow: 0 0 10px ${({ $isPositivo }) => ($isPositivo ? "rgba(56, 189, 248, 0.4)" : "rgba(251, 113, 133, 0.4)")};
+`;
+
+const AjusteDetalhesLinha = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+`;
+
+const InfoMetaAjuste = styled.div`
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+
+    .desc {
+        color: #94a3b8;
+        font-style: italic;
+    }
+`;
+
+const BotaoReajustar = styled.button`
+    background: rgba(0, 179, 255, 0.2);
+    border: 1px solid rgba(0, 179, 255, 0.5);
+    color: #e0f2fe;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #0284c7;
+        color: #ffffff;
+    }
 `;
 
 const Coluna = styled.div`
@@ -672,7 +1022,7 @@ const BadgeResponsavel = styled.span`
 
 const BarraFiltroCartoes = styled.div`
     display: flex;
-    gap: 10px;
+    gap: 8px;
     margin: 10px 0 4px 0;
     width: 100%;
     flex-wrap: wrap;
