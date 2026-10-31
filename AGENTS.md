@@ -55,12 +55,14 @@ Para garantir total controle de versão, rastreabilidade e segurança do código
 - Controle de gastos de **cartão de crédito por ciclo de fatura** (anterior / atual / próximo) com base no dia de fechamento de cada cartão.
 - Divisão de responsabilidade de gastos: `meu`, `mozi` (100% reembolsável pela parceira) e `dividido` (50%).
 - Parcelamento automático de compras.
+- **Ajustar para dar certinho**: ferramenta de calibração exata da fatura de cada cartão por ciclo, permitindo lançar diferenças positivas ou negativas (ex: fatura real de R$ 104,25 vs R$ 100,00 lançados = ajuste de +R$ 4,25; ou R$ 95,75 = ajuste de -R$ 4,25), com calculadora automática e fixação prioritária no topo da lista de lançamentos.
 - Receitas/salários por mês, gastos essenciais fixos e **projeção de saldo** dos próximos meses.
 - Regra orçamentária **50/30/20** (Essencial / Desejo / Poupança).
 - **Insights financeiros** e **Reserva de Emergência** (com taxa Selic do Banco Central).
 - **Metas Futuras & Planejador IA**: simulação de aquisição de bens (carro, imóvel, viagens, etc.) com faixa de valor (min - max), comparação entre compra à vista (CDI), financiamento (Price), plano híbrido e consórcio, travas de segurança "sem aperto" e consultoria gerada via **Firebase AI Logic (Gemini)**.
 - **Captura automática de compras** via webhook (MacroDroid no Android → `/api/webhook`).
 - **Multi-perfil**: `renato` (perfil original) e `ingrid` (perfil isolado, com integrações).
+- **Interface 100% Mobile Fluid**: otimização visual completa para smartphones (320px a 768px), com cards de 2 linhas, botões de ação confortáveis, modais fluidos com suporte a safe area inset e prevenção de zoom automático.
 
 Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/permissoes.js`).
 
@@ -83,7 +85,7 @@ Usuários: uso privado, acesso restrito a e-mails autorizados (ver `src/utils/pe
 | Lint | ESLint 9 flat config (`eslint.config.js`) |
 | Legado | `json-server` + `db.json` (dados antigos/seed; **não** é mais a fonte de dados) |
 
-**Não há** TypeScript ou testes automatizados. As regras do Firestore estão versionadas em `firestore.rules` na raiz do projeto com hardening multi-perfil e validações estritas de domínio.
+**Não há** TypeScript ou testes automatizados. As regras do Firestore estão versionadas em `firestore.rules` na raiz do projeto com hardening multi-perfil, suporte estrito a valores positivos/negativos para ajustes de fatura e validações de domínio.
 
 ---
 
@@ -147,7 +149,7 @@ guiaEconomico-/
 │   │   ├── MesContext.jsx     # mesReferencia (mês navegado), meses pagos (localStorage)
 │   │   ├── SaldoContext.jsx   # receitas + salários ajustados por mês (Firestore + cache localStorage)
 │   │   ├── EssencialContext.jsx # gastos essenciais fixos/recorrentes
-│   │   └── GastosContext.jsx  # gastos de cartão, ciclos de fatura, parcelas, cartões, Mozi, Itaú
+│   │   └── GastosContext.jsx  # gastos de cartão, ciclos, parcelas, cartões, Mozi, Itaú e ajustes de fatura
 │   ├── services/              # ÚNICA camada que fala com Firestore / APIs externas
 │   │   ├── gastosService.js   # CRUD gastos, reembolso Mozi, cartões personalizados, fatura Itaú
 │   │   ├── saldoService.js    # CRUD receitas, salários ajustados
@@ -169,8 +171,8 @@ guiaEconomico-/
 │   ├── pages/                 # Uma pasta por página, arquivo index.jsx
 │   │   ├── Outlet/            # Layout mestre (ContainerGeral): sidebar desktop, menu/bottom-nav mobile, badge de perfil
 │   │   ├── Home/              # Dashboard principal
-│   │   ├── Cartoes/           # Faturas por cartão e ciclo
-│   │   ├── Saldos/            # Receitas/saldos (também atende /comparativo)
+│   │   ├── Cartoes/           # Faturas por cartão e ciclo com ajuste inteligente e visual mobile fluido
+│   │   ├── Saldos/            # Receitas/saldos (também atende /comparativo) com cartões mobile
 │   │   ├── Insights/          # Insights + Reserva de Emergência (com taxa Selic oficial)
 │   │   ├── Metas/             # Metas Futuras & Planejador IA (simulações, travas e plano com IA)
 │   │   ├── Login/             # Login com Google
@@ -180,8 +182,8 @@ guiaEconomico-/
 │   │   ├── Card/, CardComparativo/, CardGastosAbas/, CardSaldoGrafico/
 │   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/, PlanoPrincipalDetalhado/
 │   │   ├── ListaGanhosMozi/, ListaProximosMeses/, Logo/, AcessoRestritoInsights/
-│   │   └── Modal*/ (AjusteReserva, EditarGasto, EditarReceita, FaturaItau, GastoEssencial,
-│   │                GerenciarCartoes, NovoGasto, Receita)
+│   │   └── Modal*/ (AjusteFaturaCartao, AjusteReserva, EditarGasto, EditarReceita, FaturaItau,
+│   │                GastoEssencial, GerenciarCartoes, NovoGasto, Receita)
 │   ├── styles/base/           # theme.js (cores/espacamentos/tipografia) e GlobalStyle.js
 │   └── utils/
 │       ├── permissoes.js      # E-mails autorizados, getPerfilUsuario, isEmailAutorizado, isRenato, isIngrid
@@ -228,7 +230,7 @@ Camadas (respeite a direção das dependências):
 | Path | Página | Observação |
 |---|---|---|
 | `/` | Home | Dashboard |
-| `/gastos-cartao` | Cartoes | Faturas por ciclo |
+| `/gastos-cartao` | Cartoes | Faturas por ciclo e Ajuste para Dar Certinho |
 | `/saldos` e `/comparativo` | Saldos | Mesma página |
 | `/insights` | Insights | Exibe `AcessoRestritoInsights` se sem permissão; excluída do `navigateFallback` do PWA |
 | `/metas` | Metas | Metas Futuras & Planejador IA; restrita por `temAcessoInsights`; 5º item na bottom nav |
@@ -326,6 +328,12 @@ Documentos na coleção `configuracoes`:
    - Visualização no padrão **Insights**: Cards de métricas com cores neon + cronograma mês a mês detalhado (`PlanoPrincipalDetalhado`) em formato de Planilha ou Cards com marcos de conquista.
    - Travas de segurança: parcela máxima saudável até 25-30% da renda líquida e folga mensal mínima >= 10%.
    - IA (Gemini via Firebase AI Logic) recebe apenas os cenários pré-calculados e gera recomendação, cronograma passo a passo e alertas de custos ocultos. Caso a IA falhe ou não esteja provisionada, fallback heurístico garante retorno completo e imediato sem quebrar a tela.
+10. **Ajustar para dar certinho** (`src/components/ModalAjusteFaturaCartao`, `GastosContext.jsx`):
+   - Permite compensar discrepâncias entre o que foi lançado manualmente e a fatura real fechada no app do banco (ex: juros, IOF, centavos ou compras não registradas).
+   - Suporta valores **positivos** (+R$ 4,25) ou **negativos** (-R$ 4,25), com regra autorizada no `firestore.rules` sob `origem: "ajuste_fatura"`.
+   - Modos de preenchimento: Calculadora reversa (o usuário apenas informa quanto deu no app do banco e o sistema calcula a diferença exata) ou inserção direta com toggle de sinal (+ / -).
+   - **Fixação no topo**: Qualquer lançamento com `origem === "ajuste_fatura"` é automaticamente fixado no topo da lista de lançamentos em `Cartoes/index.jsx`, acompanhado de card com visual neon exclusivo e botão direto de reajuste.
+   - Limite de 1 ajuste ativo por cartão por ciclo; salvar com valor 0 remove automaticamente o ajuste existente.
 
 ---
 
@@ -381,3 +389,4 @@ Documentos na coleção `configuracoes`:
 | 2026-10-30 | Adição da integração de valores vigentes do Insight no `ModalNovaMeta`, seleção de Cenário Principal com persistência (`cenarioAdotadoId`), componente `PlanoPrincipalDetalhado` no formato rico de Insights (cards de métricas + linha do tempo mês a mês em tabela e cards) e formatação de prazos informando meses, anos e data estimada de conquista (`formatarPrazoMesesEAnos`). |
 | 2026-10-30 | Criação e versionamento das regras de segurança completas do Cloud Firestore (`firestore.rules`), implementando modelo de autorização RBAC multi-perfil (Renato, Ingrid e Webhook Bot), validações de domínio estritas contra DoS/Update Bypass e bloqueio padrão default deny. |
 | 2026-10-30 | Implementação do **Plano de Segurança Completo**: hardening do webhook bancário com fail-safe defaults, mitigação de Timing Attacks (`crypto.timingSafeEqual`) e sanitização de payloads; configuração de cabeçalhos HTTP estritos e Content Security Policy (CSP) no `vercel.json`; utilitários de sanitização e validação de inputs (`securityUtils.js`); criação do documento de referência `SECURITY.md` e configuração do `firebase.json`. |
+| 2026-10-30 | Implementação do recurso **"Ajustar para dar certinho"** em Gastos por Cartão: criação do `ModalAjusteFaturaCartao` com calculadora reversa inteligente (ou valor direto com sinal + / -), fixação de itens de ajuste no topo de qualquer lista de lançamentos com destaque visual neon e persistência segura no Firestore via `origem: "ajuste_fatura"`. Reforma completa de responsividade mobile (320px-768px): layout em 2 linhas fluidas para lançamentos de cartão, visão em cards para receitas em Saldos, modais fluidos com suporte a safe area inset e contenção de overflow global. |

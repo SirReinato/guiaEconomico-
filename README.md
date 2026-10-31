@@ -25,6 +25,7 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 
 ### 1. 💳 Gestão Inteligente de Cartões de Crédito
 - **Ciclos de Fatura Reais**: Separação automática dos gastos por ciclo (*Anterior*, *Atual* e *Próximo*) com base na data de fechamento real de cada banco (ex: Nubank dia 30, Banco do Brasil dia 27).
+- **🎯 Ajustar para Dar Certinho (Calibração de Fatura)**: Ferramenta ágil para bater o valor exato da fatura do aplicativo do banco quando houver pequenas divergências manuais ou de IOF/taxas. Permite informar o valor final real (calculando a diferença automaticamente) ou o valor direto de ajuste com sinal positivo + ou negativo -. O lançamento é fixado com destaque visual e prioridade no **topo da lista** para fácil conferência.
 - **Divisão de Responsabilidade**: Permite classificar cada despesa como:
   - 👤 **Meu**: Gasto próprio individual.
   - 💕 **Mozi**: Gasto do parceiro (100% reembolsável, computado em Ganhos+).
@@ -55,6 +56,11 @@ O **Guia Econômico** é um dashboard financeiro pessoal completo, moderno e int
 - **Travas de Segurança Financeira**: avaliação automática de impacto na renda (verde para confortável, amarelo para atenção e vermelho para inviável).
 - **Consultoria com Gemini (Firebase AI Logic)**: análise estratégica que gera resumo executivo, passo a passo prático e alertas sobre custos ocultos (IPVA, seguro, ITBI, etc.).
 
+### 5. 📱 Experiência Mobile Totalmente Responsiva & PWA
+- **Layout Fluido & Harmônico**: Interface calibrada para qualquer tamanho de tela (320px a desktop), eliminando rolagem horizontal acidental (overflow-x: hidden) e truncamento de textos.
+- **Cards Dinâmicos em Mobile**: Lançamentos de cartão e tabelas de saldos e receitas transformam-se automaticamente em cards compactos de 2 linhas nos smartphones para leitura rápida.
+- **Modais Adaptados e Bottom Navigation Ergônomica**: Modais com altura dinâmica (max-height: 90dvh), suporte a safe-area em iOS/Android e fechamento amigável por toque no fundo escurecido.
+
 ### 5. 🔒 Segurança e Privacidade Total (Plano de Segurança Completo)
 - **Autenticação e RBAC Estrito**: Acesso restrito via Google Authentication e controle granular por perfil (`renato` e `ingrid`).
 - **Cloud Firestore Security Rules (`firestore.rules`)**: Regras no servidor com modelo *Default Deny*, validação de schemas em criação e atualização, isolamento de coleções e proteção de campos imutáveis (`criadoEm`). Deploy com `firebase deploy --only firestore:rules`.
@@ -84,6 +90,7 @@ guia-economico/
 │   │   ├── CenariosMeta/          # Abas comparativas de cenários (À vista, Financiamento, Híbrido, Consórcio)
 │   │   ├── GraficoEvolucaoMeta/   # Gráfico de acúmulo patrimonial vs meta
 │   │   ├── ModalNovaMeta/         # Modal de cadastro e edição de metas
+│   │   ├── ModalAjusteFaturaCartao/ # Modal de calibração exata de fatura (+ / -)
 │   │   ├── PlanoIA/               # Painel de consultoria e recomendações da IA
 │   │   └── ...                    # Outros componentes e modais
 │   ├── config/
