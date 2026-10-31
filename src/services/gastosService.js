@@ -58,13 +58,14 @@ export async function atualizarGastoAPI(id, dadosAtualizados, perfil = "renato")
     if (!isFirebaseConfigured) return null;
     const colecao = getNomeColecaoGastos(perfil);
     try {
-        const { id: _id, ...dados } = dadosAtualizados;
-        if (dados.valor !== undefined) {
-            dados.valor = parseCurrency(dados.valor);
+        const payload = { ...dadosAtualizados };
+        if (dadosAtualizados.valor !== undefined) {
+            payload.valor = parseCurrency(dadosAtualizados.valor);
         }
+        delete payload.id;
         const docRef = doc(db, colecao, id);
-        await updateDoc(docRef, dados);
-        return { id, ...dados };
+        await updateDoc(docRef, payload);
+        return { id, ...payload };
     } catch (error) {
         console.error(`Erro ao atualizar gasto (${colecao}) no Firestore:`, error);
         return null;
@@ -75,8 +76,7 @@ export async function removerGastoAPI(id, perfil = "renato") {
     if (!isFirebaseConfigured) return false;
     const colecao = getNomeColecaoGastos(perfil);
     try {
-        const docRef = doc(db, colecao, id);
-        await deleteDoc(docRef);
+        await deleteDoc(doc(db, colecao, id));
         return true;
     } catch (error) {
         console.error(`Erro ao remover gasto (${colecao}) no Firestore:`, error);
@@ -257,6 +257,34 @@ export async function removerGastosPorParcelamentoAPI(parcelamentoId, perfil = "
         return true;
     } catch (error) {
         console.error(`Erro ao remover gastos do parcelamento ${parcelamentoId}:`, error);
+        return false;
+    }
+}
+
+/**
+ * Remove do Firestore lançamentos de parcelamento cujos acordos não existem mais (parcelas órfãs)
+ */
+export async function removerGastosOrfaosParcelamentoAPI(idsAcordosValidos = [], perfil = "renato") {
+    if (!isFirebaseConfigured) return false;
+    const colecao = getNomeColecaoGastos(perfil);
+    try {
+        const q = query(
+            collection(db, colecao),
+            where("origem", "==", "apertou_fatura_parcela")
+        );
+        const snap = await getDocs(q);
+        const orfaos = snap.docs.filter((docSnap) => {
+            const data = docSnap.data();
+            return !data.parcelamentoId || !idsAcordosValidos.includes(data.parcelamentoId);
+        });
+        if (orfaos.length > 0) {
+            const deletes = orfaos.map((docSnap) => deleteDoc(doc(db, colecao, docSnap.id)));
+            await Promise.all(deletes);
+            console.log(`Limpou ${orfaos.length} parcelas órfãs de parcelamento de fatura em ${colecao}.`);
+        }
+        return true;
+    } catch (error) {
+        console.warn("Erro ao limpar gastos órfãos de parcelamento:", error);
         return false;
     }
 }

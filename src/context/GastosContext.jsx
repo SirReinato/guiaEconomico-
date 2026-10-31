@@ -13,6 +13,7 @@ import {
     getParcelamentosFaturaAPI,
     salvarParcelamentosFaturaAPI,
     removerGastosPorParcelamentoAPI,
+    removerGastosOrfaosParcelamentoAPI,
 } from "../services/gastosService";
 import {
     getAssinaturasAPI,
@@ -36,17 +37,16 @@ const CARTOES_PADRAO_RENATO = [
 ];
 
 export function GastosProvider({ children }) {
-    const { perfilAtivo } = useAuth() || {};
-    const perfil = perfilAtivo || "renato";
-    const isIngrid = perfil === "ingrid";
-
+    const { perfil, isIngrid } = useAuth() || {};
     const [gastos, setGastos] = useState([]);
-    const [gastosReembolsoRenato, setGastosReembolsoRenato] = useState([]);
-    const [gastosReembolsoIngrid, setGastosReembolsoIngrid] = useState([]);
+
+    // Multi-perfil: cartões personalizados e integrações
     const [cartoesPersonalizados, setCartoesPersonalizados] = useState([]);
     const [faturasItau, setFaturasItau] = useState({});
+    const [gastosReembolsoRenato, setGastosReembolsoRenato] = useState([]);
+    const [gastosReembolsoIngrid, setGastosReembolsoIngrid] = useState([]);
 
-    // Assinaturas e Recorrências
+    // Assinaturas Recorrentes por cartão
     const [assinaturas, setAssinaturas] = useState([]);
     const [assinaturasReembolsoParceiro, setAssinaturasReembolsoParceiro] = useState([]);
 
@@ -72,10 +72,25 @@ export function GastosProvider({ children }) {
             ]);
 
             if (!isMounted) return;
-            setGastos(meusGastos);
+
+            // Extrai IDs de acordos ativos válidos
+            const idsValidos = Object.values(meusParcelamentos || {}).map((a) => a.id).filter(Boolean);
+
+            // Filtra imediatamente parcelas órfãs para garantir que faturas futuras não fiquem duplicadas
+            const gastosLimpos = (meusGastos || []).filter((g) => {
+                if (g.origem === "apertou_fatura_parcela") {
+                    return g.parcelamentoId && idsValidos.includes(g.parcelamentoId);
+                }
+                return true;
+            });
+
+            setGastos(gastosLimpos);
             if (faturasItauRemotas) setFaturasItau(faturasItauRemotas);
             setAssinaturas(minhasAssinaturas || []);
             setParcelamentosFatura(meusParcelamentos || {});
+
+            // Limpa do Firestore parcelas órfãs que possam ter sobrado de acordos cancelados
+            removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
 
             if (isIngrid) {
                 const [reembolsos, cartoesIngrid, assinaturasRenato] = await Promise.all([
@@ -161,46 +176,48 @@ export function GastosProvider({ children }) {
         return lista;
     }, [isIngrid, cartoesPersonalizados, gastosReembolsoIngrid, assinaturasReembolsoParceiro]);
 
-    // Mapeamento de fechamentos
+    // Mapa rápido de dias de fechamento por cartão
     const fechamentosPorCartao = useMemo(() => {
         const mapa = {
             Nubank: 30,
-            Picpay: 30,
             "Banco do Brasil": 27,
-            "Itaú": 30,
+            Picpay: 30,
+            Itaú: 30,
             "Cartões do Renato": 30,
             "Cartões da Ingrid": 30,
         };
-        cartoesAtivos.forEach((c) => {
-            mapa[c.id] = c.diaFechamento || 30;
-            mapa[c.nome] = c.diaFechamento || 30;
+        (cartoesPersonalizados || []).forEach((c) => {
+            if (c.diaFechamento) {
+                mapa[c.id || c.nome] = c.diaFechamento;
+                mapa[c.nome] = c.diaFechamento;
+            }
         });
         return mapa;
-    }, [cartoesAtivos]);
+    }, [cartoesPersonalizados]);
 
-    // Adicionar Cartão Personalizado
+    // Ações de cartões personalizados (Perfil Ingrid)
     const adicionarCartaoPersonalizado = async (novoCartao) => {
+        const id = `cartao_${Date.now()}`;
         const cartaoFormatado = {
-            id: novoCartao.id || novoCartao.nome?.trim(),
-            nome: novoCartao.nome?.trim(),
-            diaFechamento: parseInt(novoCartao.diaFechamento, 10) || 30,
-            cor: novoCartao.cor || "#00b3ff",
+            id,
+            nome: novoCartao.nome,
+            cor: novoCartao.cor || "#ec4899",
             icone: novoCartao.icone || "💳",
+            diaFechamento: parseInt(novoCartao.diaFechamento, 10) || 30,
         };
-        const novaLista = [...cartoesPersonalizados, cartaoFormatado];
-        setCartoesPersonalizados(novaLista);
-        await salvarCartoesPersonalizadosAPI(novaLista, perfil);
+        const atualizados = [...cartoesPersonalizados, cartaoFormatado];
+        setCartoesPersonalizados(atualizados);
+        await salvarCartoesPersonalizadosAPI(atualizados, perfil);
         return cartaoFormatado;
     };
 
-    // Remover Cartão Personalizado
     const removerCartaoPersonalizado = async (cartaoId) => {
-        const novaLista = cartoesPersonalizados.filter((c) => c.id !== cartaoId && c.nome !== cartaoId);
-        setCartoesPersonalizados(novaLista);
-        await salvarCartoesPersonalizadosAPI(novaLista, perfil);
+        const atualizados = cartoesPersonalizados.filter((c) => c.id !== cartaoId);
+        setCartoesPersonalizados(atualizados);
+        await salvarCartoesPersonalizadosAPI(atualizados, perfil);
     };
 
-    // Salvar Fatura Itaú do Mês
+    // Ação para salvar fatura do Itaú
     const salvarFaturaItauMes = async (chaveMes, valor) => {
         const atualizadas = await salvarFaturaItauMesAPI(chaveMes, valor);
         if (atualizadas) {
@@ -208,7 +225,7 @@ export function GastosProvider({ children }) {
         }
     };
 
-    // Calcula a data para cada mês seguinte de uma parcela
+    // Calcula a data para cada mês seguinte de uma parcela normal
     function calcularDataParcela(dataBaseStr, mesesAFrente) {
         if (!dataBaseStr || mesesAFrente === 0) return dataBaseStr;
 
@@ -317,33 +334,37 @@ export function GastosProvider({ children }) {
                 };
             }
 
-            return { inicio: null, fim: null };
+            return {
+                inicio: new Date(ano, mes - 1, fechamento + 1, 0, 0, 0, 0),
+                fim: new Date(ano, mes, fechamento, 23, 59, 59, 999),
+            };
         },
         [fechamentosPorCartao, mesReferencia]
     );
 
     const parseDataSegura = useCallback((dataStr) => {
         if (!dataStr) return null;
-        return new Date(dataStr.includes("T") ? dataStr : `${dataStr}T12:00:00`);
+        return new Date(dataStr.includes("T") ? dataStr : `${dataStr}T00:00:00`);
     }, []);
 
-    // Determina a data de referência para um ciclo específico a partir de uma data base
-    const getDataReferenciaCiclo = useCallback((ref = mesReferencia || new Date(), ciclo = "atual") => {
-        const d = ref ? new Date(ref) : new Date();
-        if (ciclo === "anterior") {
-            return new Date(d.getFullYear(), d.getMonth() - 1, 1);
-        }
-        if (ciclo === "proximo") {
-            return new Date(d.getFullYear(), d.getMonth() + 1, 1);
-        }
-        return d;
+    // Calcula a data de referência para um ciclo
+    const getDataReferenciaCiclo = useCallback((ref = mesReferencia, ciclo = "atual") => {
+        const d = ref || new Date();
+        const ano = d.getFullYear();
+        const mes = d.getMonth();
+        if (ciclo === "anterior") return new Date(ano, mes - 1, 1);
+        if (ciclo === "proximo") return new Date(ano, mes + 1, 1);
+        return new Date(ano, mes, 1);
     }, [mesReferencia]);
 
-    // Verifica se uma assinatura está ativa e vigente em determinado ciclo 'YYYY-MM'
+    // Checa se uma assinatura é válida para um ciclo (YYYY-MM)
     const isAssinaturaValidaNoCiclo = useCallback((assinatura, chaveCiclo) => {
         if (!assinatura) return false;
-        if (assinatura.inicioCiclo && chaveCiclo < assinatura.inicioCiclo) return false;
-        if (!assinatura.ativa && assinatura.canceladaAPartirDe && chaveCiclo >= assinatura.canceladaAPartirDe) {
+        const inicio = assinatura.inicioCiclo || (assinatura.dataInicio ? assinatura.dataInicio.slice(0, 7) : null);
+        if (inicio && chaveCiclo < inicio) {
+            return false;
+        }
+        if (assinatura.canceladaAPartirDe && chaveCiclo >= assinatura.canceladaAPartirDe) {
             return false;
         }
         return true;
@@ -386,8 +407,8 @@ export function GastosProvider({ children }) {
                         };
                     });
 
-                // Assinaturas ativas do Renato que são mozi ou dividido
-                const assinaturasRenatoCiclo = (assinaturasReembolsoParceiro || [])
+                // Assinaturas do Renato que ela deve reembolsar
+                const assinaturasReembolso = (assinaturasReembolsoParceiro || [])
                     .filter((a) => isAssinaturaValidaNoCiclo(a, chaveCiclo))
                     .map((a) => {
                         const valorTotal = parseCurrency(a.valor);
@@ -397,31 +418,29 @@ export function GastosProvider({ children }) {
                             id: `assinatura-parceiro-${a.id}-${chaveCiclo}`,
                             idAssinatura: a.id,
                             cartao: "Cartões do Renato",
-                            cartaoOriginal: a.cartao,
                             categoria: a.categoria || "Assinaturas",
-                            tipo: a.tipo || "Desejo",
-                            responsavel: a.responsavel,
-                            valor: valorTotal,
+                            tipo: "Essencial",
+                            responsavel: "meu",
                             valorCalculado: valorTotal * fator,
                             data: `${chaveCiclo}-${dia}`,
                             descricao: a.nome,
-                            descricaoExibicao: `🔄 ${a.nome} (Assinatura do Renato)`,
+                            descricaoExibicao: `🔄 ${a.nome} (Assinatura ${a.cartao} - Renato)`,
                             origem: "assinatura",
                             isAssinatura: true,
                         };
                     });
 
-                return [...itensCompras, ...assinaturasRenatoCiclo];
+                return [...itensCompras, ...assinaturasReembolso];
             }
 
-            // 2. Perfil Renato: Cartões da Ingrid (Integrado A Pagar caso ela parcele ou divida algo com ele)
+            // 2. Perfil Renato: Cartões da Ingrid (Integrado A Pagar)
             if (!isIngrid && (cartao === "Cartões da Ingrid" || cartao === "Cartões da Ingrid (A Pagar)")) {
-                const { inicio: iniIngrid, fim: fimIngrid } = getIntervaloFatura("Nubank", ref, ciclo);
+                const { inicio: iniNubank, fim: fimNubank } = getIntervaloFatura("Nubank", ref, ciclo);
 
-                const itensCompras = (gastosReembolsoIngrid || [])
+                const itensCompras = gastosReembolsoIngrid
                     .filter((g) => {
                         const data = parseDataSegura(g.data);
-                        return data && data >= iniIngrid && data <= fimIngrid;
+                        return data && data >= iniNubank && data <= fimNubank;
                     })
                     .map((g) => {
                         const valorTotal = parseCurrency(g.valor);
@@ -435,34 +454,32 @@ export function GastosProvider({ children }) {
                         };
                     });
 
-                const assinaturasIngridCiclo = (assinaturasReembolsoParceiro || [])
+                const assinaturasReembolso = (assinaturasReembolsoParceiro || [])
                     .filter((a) => isAssinaturaValidaNoCiclo(a, chaveCiclo))
                     .map((a) => {
                         const valorTotal = parseCurrency(a.valor);
                         const fator = a.responsavel === "dividido" ? 0.5 : 1.0;
                         const dia = String(a.dataInicio || "10").slice(-2);
                         return {
-                            id: `assinatura-parceiro-${a.id}-${chaveCiclo}`,
+                            id: `assinatura-parceiro-ingrid-${a.id}-${chaveCiclo}`,
                             idAssinatura: a.id,
                             cartao: "Cartões da Ingrid",
-                            cartaoOriginal: a.cartao,
                             categoria: a.categoria || "Assinaturas",
-                            tipo: a.tipo || "Desejo",
-                            responsavel: a.responsavel,
-                            valor: valorTotal,
+                            tipo: "Essencial",
+                            responsavel: "meu",
                             valorCalculado: valorTotal * fator,
                             data: `${chaveCiclo}-${dia}`,
                             descricao: a.nome,
-                            descricaoExibicao: `🔄 ${a.nome} (Assinatura da Ingrid)`,
+                            descricaoExibicao: `🔄 ${a.nome} (Assinatura ${a.cartao} - Ingrid)`,
                             origem: "assinatura",
                             isAssinatura: true,
                         };
                     });
 
-                return [...itensCompras, ...assinaturasIngridCiclo];
+                return [...itensCompras, ...assinaturasReembolso];
             }
 
-            // 3. Perfil Ingrid: Cartão Itaú (Valor manual ou parcelado)
+            // 3. Cartão Itaú (Perfil Ingrid)
             if (isIngrid && cartao === "Itaú") {
                 const acordoItau = parcelamentosFatura[`Itaú_${chaveCiclo}`];
                 if (acordoItau) {
@@ -477,8 +494,8 @@ export function GastosProvider({ children }) {
                             responsavel: "meu",
                             valor: acordoItau.divisaoEntrada.valorMeu,
                             data: acordoItau.dataEntrada || `${chaveCiclo}-10`,
-                            descricao: "Apertou a Fatura (Entrada - Minha Parte)",
-                            descricaoExibicao: "🚨 Entrada Fatura Itaú (Minha Parte)",
+                            descricao: "Apertou a Fatura Itaú (Entrada - Minha Parte)",
+                            descricaoExibicao: "🚨 Entrada Fatura Itaú (Pessoal)",
                             origem: "apertou_fatura_entrada",
                             isEntradaParcelamento: true,
                         });
@@ -491,7 +508,7 @@ export function GastosProvider({ children }) {
                             responsavel: "mozi",
                             valor: acordoItau.divisaoEntrada.valorMozi,
                             data: acordoItau.dataEntrada || `${chaveCiclo}-10`,
-                            descricao: "Apertou a Fatura (Entrada - Parte Renato)",
+                            descricao: "Apertou a Fatura Itaú (Entrada - Parte Renato)",
                             descricaoExibicao: "🚨 Entrada Fatura Itaú (Parte Renato)",
                             origem: "apertou_fatura_entrada",
                             isEntradaParcelamento: true,
@@ -537,7 +554,20 @@ export function GastosProvider({ children }) {
             // A) Coleta compras avulsas e parcelas normais salvas no banco
             const itensDoBanco = gastos.filter((g) => {
                 const data = parseDataSegura(g.data);
-                return g.cartao === cartao && data && data >= inicio && data <= fim;
+                const bateData = g.cartao === cartao && data && data >= inicio && data <= fim;
+                if (!bateData) return false;
+
+                // Se for parcela de acordo de fatura, garante que pertence a um acordo ainda ativo
+                if (g.origem === "apertou_fatura_parcela") {
+                    const todosAcordos = Object.values(parcelamentosFatura || {});
+                    const pertenceAcordoAtivo = todosAcordos.some((a) => a.id === g.parcelamentoId);
+                    if (!pertenceAcordoAtivo) {
+                        // Parcela órfã de acordo já cancelado ou inexistente -> ignora!
+                        return false;
+                    }
+                }
+
+                return true;
             });
 
             // Se a fatura desse mês foi parcelada via "Apertou a Fatura":
@@ -904,7 +934,7 @@ export function GastosProvider({ children }) {
     /**
      * Salva o acordo de parcelamento da fatura:
      * - Registra o acordo em parcelamentosFatura (substituindo o mês atual pela Entrada)
-     * - Gera os lançamentos das N parcelas para os próximos meses
+     * - Gera os lançamentos das N parcelas para os próximos meses de forma estritamente controlada
      */
     const salvarParcelamentoFatura = async ({
         cartao,
@@ -936,7 +966,20 @@ export function GastosProvider({ children }) {
             criadoEm: new Date().toISOString(),
         };
 
-        // 1. Atualiza o mapa de acordos de parcelamento no estado e no Firestore
+        // 1. Limpa parcelas anteriores deste cartão para evitar qualquer duplicação
+        const acordosAnteriores = Object.values(parcelamentosFatura || {}).filter(
+            (a) => a.cartao === cartao
+        );
+        for (const antigo of acordosAnteriores) {
+            if (antigo.id && antigo.id !== idAcordo) {
+                await removerGastosPorParcelamentoAPI(antigo.id, perfil);
+            }
+        }
+        setGastos((prev) =>
+            prev.filter((g) => !(g.origem === "apertou_fatura_parcela" && g.cartao === cartao))
+        );
+
+        // 2. Atualiza o mapa de acordos de parcelamento no estado e no Firestore
         const novosAcordos = {
             ...parcelamentosFatura,
             [chaveMapa]: novoAcordo,
@@ -944,12 +987,22 @@ export function GastosProvider({ children }) {
         setParcelamentosFatura(novosAcordos);
         await salvarParcelamentosFaturaAPI(novosAcordos, perfil);
 
-        // 2. Gera os lançamentos das parcelas nos próximos N meses
-        const baseDate = dataEntrada || `${chaveCicloEntrada}-10`;
+        // 3. Gera os lançamentos das parcelas nos próximos N meses
+        // A parcela 1 é SEMPRE calculada para o ciclo imediatamente seguinte ao da entrada (mês M + 1).
+        // A parcela 2 é para o mês M + 2, e assim por diante.
+        const [anoCicloStr, mesCicloStr] = chaveCicloEntrada.split("-");
+        const anoCiclo = parseInt(anoCicloStr, 10);
+        const mesCiclo = parseInt(mesCicloStr, 10); // 1 a 12
         const parcelasParaSalvar = [];
 
         for (let i = 1; i <= novoAcordo.qtdParcelas; i++) {
-            const dataParcela = calcularDataParcela(baseDate, i);
+            const totalMeses = (mesCiclo - 1) + i;
+            const anoParcela = anoCiclo + Math.floor(totalMeses / 12);
+            const mesParcela = (totalMeses % 12) + 1;
+            const mesFormatado = String(mesParcela).padStart(2, "0");
+            // Dia 10 é seguro e garantido em TODOS os cartões (Nubank fecha 30, BB fecha 27, etc.)
+            // garantindo que a parcela cai 100% dentro do ciclo contábil do mês correto, sem vazar pro mês posterior.
+            const dataParcela = `${anoParcela}-${mesFormatado}-10`;
             const rotuloParcela = `${i}/${novoAcordo.qtdParcelas}`;
 
             if (divisaoParcela?.tipo === "dividido") {
@@ -1012,20 +1065,46 @@ export function GastosProvider({ children }) {
     };
 
     /**
-     * Cancela e desfaz um acordo de parcelamento, removendo as parcelas geradas
+     * Cancela e desfaz um acordo de parcelamento, removendo todas as parcelas geradas
      * e descongelando os gastos originais daquele cartão naquele ciclo.
      */
     const cancelarParcelamentoFatura = async (idAcordo, cartao, chaveCiclo) => {
-        const chaveMapa = `${cartao}_${chaveCiclo}`;
         const novosAcordos = { ...parcelamentosFatura };
-        delete novosAcordos[chaveMapa];
+
+        // Remove do mapa de acordos qualquer chave que referencie esse acordo ou esse cartão
+        Object.keys(novosAcordos).forEach((chave) => {
+            if (
+                novosAcordos[chave]?.id === idAcordo ||
+                chave === `${cartao}_${chaveCiclo}` ||
+                novosAcordos[chave]?.cartao === cartao
+            ) {
+                delete novosAcordos[chave];
+            }
+        });
 
         setParcelamentosFatura(novosAcordos);
         await salvarParcelamentosFaturaAPI(novosAcordos, perfil);
 
-        // Remove todos os gastos vinculados a esse parcelamento
-        await removerGastosPorParcelamentoAPI(idAcordo, perfil);
-        setGastos((prev) => prev.filter((g) => g.parcelamentoId !== idAcordo));
+        // Remove do Firestore todos os gastos vinculados a esse parcelamentoId
+        if (idAcordo) {
+            await removerGastosPorParcelamentoAPI(idAcordo, perfil);
+        }
+
+        // Limpa do Firestore qualquer outra parcela órfã de parcelamento
+        const idsValidos = Object.values(novosAcordos).map((a) => a.id).filter(Boolean);
+        await removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
+
+        // Atualiza estado local de gastos removendo as parcelas
+        setGastos((prev) =>
+            prev.filter((g) => {
+                if (g.parcelamentoId === idAcordo) return false;
+                if (g.origem === "apertou_fatura_parcela" && g.cartao === cartao) return false;
+                if (g.origem === "apertou_fatura_parcela" && (!g.parcelamentoId || !idsValidos.includes(g.parcelamentoId))) {
+                    return false;
+                }
+                return true;
+            })
+        );
         return true;
     };
 

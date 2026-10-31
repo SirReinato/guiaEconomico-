@@ -23,6 +23,7 @@ export default function Cartoes() {
         cartoesAtivos,
         faturasItau,
         chaveMesAtual,
+        parcelamentosFatura,
     } = useGastos();
     const {
         nomeMesAno,
@@ -45,6 +46,19 @@ export default function Cartoes() {
     const [modalApertouAberto, setModalApertouAberto] = useState(false);
     const [modalAssinaturasAberto, setModalAssinaturasAberto] = useState(false);
     const [cartaoParaAssinaturas, setCartaoParaAssinaturas] = useState(null);
+    const [acordoSelecionadoModal, setAcordoSelecionadoModal] = useState(null);
+
+    const abrirAcordoDeParcela = (gasto) => {
+        const todosAcordos = Object.values(parcelamentosFatura || {});
+        const acordo = todosAcordos.find(
+            (a) => a.id === gasto.parcelamentoId || a.cartao === gasto.cartao
+        );
+        setAcordoSelecionadoModal(acordo || null);
+        if (gasto.cartao) {
+            setCartaoSelecionado(gasto.cartao);
+        }
+        setModalApertouAberto(true);
+    };
 
     const { saldoLiquido } = useResumoFinanceiro();
     const fatura = getFaturaPorCartao(ciclo, mesReferencia);
@@ -535,9 +549,14 @@ export default function Cartoes() {
                                             Editar
                                         </BotaoEditar>
                                     ) : isParcelaAcordo ? (
-                                        <BotaoEditar onClick={() => setModalApertouAberto(true)}>
-                                            Acordo
-                                        </BotaoEditar>
+                                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                            <BotaoEditar onClick={() => setGastoParaEditar(gasto)} title="Excluir ou editar esta parcela">
+                                                Excluir
+                                            </BotaoEditar>
+                                            <BotaoEditar onClick={() => abrirAcordoDeParcela(gasto)} title="Ver acordo do parcelamento">
+                                                Acordo
+                                            </BotaoEditar>
+                                        </div>
                                     ) : gasto.cartao === "Itaú" ? (
                                         <BotaoEditar onClick={() => setModalItauAberto(true)}>
                                             Ajustar
@@ -589,10 +608,15 @@ export default function Cartoes() {
                                                 Editar
                                             </BotaoEditarMobile>
                                         ) : isParcelaAcordo ? (
-                                            <BotaoEditarMobile onClick={() => setModalApertouAberto(true)}>
-                                                Acordo
-                                            </BotaoEditarMobile>
-                                        ) : gasto.cartao === "Itaú" ? (
+                                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                                    <BotaoEditarMobile onClick={() => setGastoParaEditar(gasto)} title="Excluir ou editar esta parcela">
+                                                        Excluir
+                                                    </BotaoEditarMobile>
+                                                    <BotaoEditarMobile onClick={() => abrirAcordoDeParcela(gasto)} title="Ver acordo do parcelamento">
+                                                        Acordo
+                                                    </BotaoEditarMobile>
+                                                </div>
+                                            ) : gasto.cartao === "Itaú" ? (
                                             <BotaoEditarMobile onClick={() => setModalItauAberto(true)}>
                                                 Ajustar
                                             </BotaoEditarMobile>
@@ -650,7 +674,11 @@ export default function Cartoes() {
                 <ModalApertouFatura
                     cartaoInicial={cartaoSelecionado}
                     ciclo={ciclo}
-                    onClose={() => setModalApertouAberto(false)}
+                    acordoEspecifico={acordoSelecionadoModal}
+                    onClose={() => {
+                        setModalApertouAberto(false);
+                        setAcordoSelecionadoModal(null);
+                    }}
                 />
             )}
 

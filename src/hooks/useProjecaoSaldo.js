@@ -7,7 +7,7 @@ import { useMes } from "../context/MesContext";
 
 export function useProjecaoSaldo(qtd = 3) {
     const { saldo, getSalarioDoMes } = useSaldo();
-    const { gastos, assinaturas, isAssinaturaValidaNoCiclo } = useGastos();
+    const { gastos, assinaturas, isAssinaturaValidaNoCiclo, parcelamentosFatura } = useGastos();
     const { essenciais } = useEssencial();
     const { mesReferencia } = useMes() || {};
 
@@ -65,6 +65,11 @@ export function useProjecaoSaldo(qtd = 3) {
         const saidasGastos = (gastos || [])
             .filter((item) => {
                 if (item.congeladoPorParcelamento) return false;
+                if (item.origem === "apertou_fatura_parcela") {
+                    const todosAcordos = Object.values(parcelamentosFatura || {});
+                    const pertence = todosAcordos.some((a) => a.id === item.parcelamentoId);
+                    if (!pertence) return false;
+                }
                 const data = parseDataSegura(item.data);
                 return (
                     data &&

@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function ModalApertouFatura({
     cartaoInicial = "",
     ciclo = "atual",
+    acordoEspecifico = null,
     onClose,
 }) {
     const {
@@ -17,6 +18,7 @@ export default function ModalApertouFatura({
         salvarParcelamentoFatura,
         cancelarParcelamentoFatura,
         getAcordoAtivoCartaoCiclo,
+        parcelamentosFatura,
         chaveMesAtual,
     } = useGastos() || {};
     const { nomeMesAno, mesReferencia } = useMes() || {};
@@ -33,6 +35,9 @@ export default function ModalApertouFatura({
     }, [cartoesAtivos]);
 
     const [cartaoSelecionado, setCartaoSelecionado] = useState(() => {
+        if (acordoEspecifico?.cartao) {
+            return acordoEspecifico.cartao;
+        }
         if (cartaoInicial && cartaoInicial !== "todos") {
             const achou = cartoesDisponiveis.find(
                 (c) => c.id === cartaoInicial || c.nome === cartaoInicial
@@ -44,9 +49,15 @@ export default function ModalApertouFatura({
 
     // Acordo ativo existente para este cartão e ciclo
     const acordoAtivo = useMemo(() => {
-        if (!cartaoSelecionado || !getAcordoAtivoCartaoCiclo) return null;
-        return getAcordoAtivoCartaoCiclo(cartaoSelecionado, ciclo, mesReferencia);
-    }, [cartaoSelecionado, ciclo, mesReferencia, getAcordoAtivoCartaoCiclo]);
+        if (acordoEspecifico) return acordoEspecifico;
+        if (!cartaoSelecionado) return null;
+        const peloCiclo = getAcordoAtivoCartaoCiclo ? getAcordoAtivoCartaoCiclo(cartaoSelecionado, ciclo, mesReferencia) : null;
+        if (peloCiclo) return peloCiclo;
+
+        // Fallback: procura QUALQUER acordo ativo deste cartão
+        const todos = Object.values(parcelamentosFatura || {});
+        return todos.find((a) => a.cartao === cartaoSelecionado) || null;
+    }, [acordoEspecifico, cartaoSelecionado, ciclo, mesReferencia, getAcordoAtivoCartaoCiclo, parcelamentosFatura]);
 
     // Subtotal dos gastos originais deste ciclo
     const subtotalFaturaOriginal = useMemo(() => {
@@ -207,7 +218,7 @@ export default function ModalApertouFatura({
         if (!acordoAtivo) return;
         setSalvando(true);
         try {
-            await cancelarParcelamentoFatura(acordoAtivo.id, cartaoSelecionado, chaveMesAtual);
+            await cancelarParcelamentoFatura(acordoAtivo.id, acordoAtivo.cartao || cartaoSelecionado, acordoAtivo.chaveCicloEntrada || chaveMesAtual);
             onClose();
         } catch (err) {
             console.error("Erro ao cancelar parcelamento:", err);
