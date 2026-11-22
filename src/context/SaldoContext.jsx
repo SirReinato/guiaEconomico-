@@ -1,5 +1,5 @@
 // context/SaldoContext.js
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
     getSaldo,
     adicionarReceitaAPI,
@@ -80,15 +80,15 @@ export function SaldoProvider({ children }) {
         }
     }, [salariosPorMes, perfil]);
 
-    const adicionarReceita = async (novaReceita) => {
+    const adicionarReceita = useCallback(async (novaReceita) => {
         const receitaSalva = await adicionarReceitaAPI(novaReceita, perfil);
         if (receitaSalva) {
             setSaldo((prev) => [...prev, receitaSalva]);
         }
         return receitaSalva;
-    };
+    }, [perfil]);
 
-    const atualizarReceita = async (id, dadosAtualizados) => {
+    const atualizarReceita = useCallback(async (id, dadosAtualizados) => {
         const receitaAtualizada = await atualizarReceitaAPI(id, dadosAtualizados, perfil);
         if (receitaAtualizada) {
             setSaldo((prev) =>
@@ -96,18 +96,18 @@ export function SaldoProvider({ children }) {
             );
         }
         return receitaAtualizada;
-    };
+    }, [perfil]);
 
-    const removerReceita = async (id) => {
+    const removerReceita = useCallback(async (id) => {
         const sucesso = await removerReceitaAPI(id, perfil);
         if (sucesso) {
             setSaldo((prev) => prev.filter((item) => item.id !== id));
         }
         return sucesso;
-    };
+    }, [perfil]);
 
     // Ajustar salário de um mês específico
-    const ajustarSalarioMes = (ano, mes, valor) => {
+    const ajustarSalarioMes = useCallback((ano, mes, valor) => {
         setSalariosPorMes((prev) => {
             const atualizado = {
                 ...prev,
@@ -116,10 +116,10 @@ export function SaldoProvider({ children }) {
             salvarSalariosAjustadosAPI(atualizado, perfil);
             return atualizado;
         });
-    };
+    }, [perfil]);
 
     // Obtém o último salário registrado historicamente em lançamentos
-    const getUltimoSalarioLancado = () => {
+    const getUltimoSalarioLancado = useCallback(() => {
         const salariosLancados = (saldo || [])
             .filter((item) => {
                 const tipo = item.tipo?.toLowerCase() || "";
@@ -134,10 +134,10 @@ export function SaldoProvider({ children }) {
         return salariosLancados.length > 0
             ? parseCurrency(salariosLancados[0].valor)
             : 0;
-    };
+    }, [saldo]);
 
     // Obter salário do mês
-    const getSalarioDoMes = (ano, mes) => {
+    const getSalarioDoMes = useCallback((ano, mes) => {
         const ajuste = salariosPorMes[`${ano}-${mes}`];
         if (ajuste !== undefined && ajuste !== null && ajuste !== "") {
             return ajuste;
@@ -156,9 +156,9 @@ export function SaldoProvider({ children }) {
         }
 
         return salarioPadrao || getUltimoSalarioLancado();
-    };
+    }, [getUltimoSalarioLancado, salarioPadrao, saldo, salariosPorMes]);
 
-    const getEntradasDoMes = (ref = mesReferencia) => {
+    const getEntradasDoMes = useCallback((ref = mesReferencia) => {
         const dataRef = ref || new Date();
         const ano = dataRef.getFullYear();
         const mes = dataRef.getMonth();
@@ -188,23 +188,36 @@ export function SaldoProvider({ children }) {
         }
 
         return totalReceitas;
-    };
+    }, [getSalarioDoMes, mesReferencia, saldo]);
+
+    const value = useMemo(
+        () => ({
+            saldo,
+            adicionarReceita,
+            atualizarReceita,
+            removerReceita,
+            salarioPadrao,
+            setSalarioPadrao,
+            getSalarioDoMes,
+            ajustarSalarioMes,
+            salariosPorMes,
+            getEntradasDoMes,
+        }),
+        [
+            saldo,
+            adicionarReceita,
+            atualizarReceita,
+            removerReceita,
+            salarioPadrao,
+            getSalarioDoMes,
+            ajustarSalarioMes,
+            salariosPorMes,
+            getEntradasDoMes,
+        ]
+    );
 
     return (
-        <SaldoContext.Provider
-            value={{
-                saldo,
-                adicionarReceita,
-                atualizarReceita,
-                removerReceita,
-                salarioPadrao,
-                setSalarioPadrao,
-                getSalarioDoMes,
-                ajustarSalarioMes,
-                salariosPorMes,
-                getEntradasDoMes,
-            }}
-        >
+        <SaldoContext.Provider value={value}>
             {children}
         </SaldoContext.Provider>
     );

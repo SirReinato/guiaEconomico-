@@ -1214,48 +1214,67 @@ export function GastosProvider({ children }) {
         return true;
     };
 
+    const chaveMesAtual = getChaveMes(mesReferencia);
+
+    const value = useMemo(
+        () => ({
+            gastos,
+            adicionarGasto,
+            atualizarGasto,
+            removerGasto,
+            getIntervaloFatura,
+            getGastosDoCiclo,
+            getFaturaPorCartao,
+            getFaturaTotalCartao,
+            getEssenciais,
+            getLivres,
+            getInvestimentos,
+            getGanhosMozi,
+            // Novos recursos multi-perfil e integração
+            cartoesAtivos,
+            adicionarCartaoPersonalizado,
+            removerCartaoPersonalizado,
+            faturasItau,
+            salvarFaturaItauMes,
+            gastosReembolsoRenato,
+            gastosReembolsoIngrid,
+            chaveMesAtual,
+            salvarAjusteFaturaCartao,
+            getAjusteFaturaCartao,
+            // Assinaturas Recorrentes
+            assinaturas,
+            adicionarAssinatura,
+            atualizarAssinatura,
+            cancelarAssinatura,
+            reativarAssinatura,
+            removerAssinatura,
+            isAssinaturaValidaNoCiclo,
+            // Apertou a Fatura
+            parcelamentosFatura,
+            parcelamentosParceiro,
+            salvarParcelamentoFatura,
+            cancelarParcelamentoFatura,
+            getAcordoAtivoCartaoCiclo,
+        }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            gastos,
+            cartoesAtivos,
+            faturasItau,
+            gastosReembolsoRenato,
+            gastosReembolsoIngrid,
+            chaveMesAtual,
+            assinaturas,
+            parcelamentosFatura,
+            parcelamentosParceiro,
+            mesReferencia,
+            perfil,
+            isIngrid,
+        ]
+    );
+
     return (
-        <GastosContext.Provider
-            value={{
-                gastos,
-                adicionarGasto,
-                atualizarGasto,
-                removerGasto,
-                getIntervaloFatura,
-                getGastosDoCiclo,
-                getFaturaPorCartao,
-                getFaturaTotalCartao,
-                getEssenciais,
-                getLivres,
-                getInvestimentos,
-                getGanhosMozi,
-                // Novos recursos multi-perfil e integração
-                cartoesAtivos,
-                adicionarCartaoPersonalizado,
-                removerCartaoPersonalizado,
-                faturasItau,
-                salvarFaturaItauMes,
-                gastosReembolsoRenato,
-                gastosReembolsoIngrid,
-                chaveMesAtual: getChaveMes(mesReferencia),
-                salvarAjusteFaturaCartao,
-                getAjusteFaturaCartao,
-                // Assinaturas Recorrentes
-                assinaturas,
-                adicionarAssinatura,
-                atualizarAssinatura,
-                cancelarAssinatura,
-                reativarAssinatura,
-                removerAssinatura,
-                isAssinaturaValidaNoCiclo,
-                // Apertou a Fatura
-                parcelamentosFatura,
-                parcelamentosParceiro,
-                salvarParcelamentoFatura,
-                cancelarParcelamentoFatura,
-                getAcordoAtivoCartaoCiclo,
-            }}
-        >
+        <GastosContext.Provider value={value}>
             {children}
         </GastosContext.Provider>
     );
