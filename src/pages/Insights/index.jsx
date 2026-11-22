@@ -42,6 +42,7 @@ export default function Insights() {
 
     const [filtroVisual, setFiltroVisual] = useState("todos"); // "todos" | "historico" | "projecao" | "marcos"
     const [termoBusca, setTermoBusca] = useState("");
+    const [mostrarTodosMeses, setMostrarTodosMeses] = useState(false);
 
     // Modo de exibição: no mobile abre em 'cards' interativos por padrão, no desktop em 'tabela'
     const [modoExibicao, setModoExibicao] = useState(() => {
@@ -328,6 +329,23 @@ export default function Insights() {
         });
     }, [linhas, filtroVisual, termoBusca, marcos]);
 
+    // Janela focada no DOM para evitar renderizar 912 linhas de uma só vez
+    const linhasRenderizadas = useMemo(() => {
+        if (mostrarTodosMeses || termoBusca.trim() !== "" || linhasExibidas.length <= 72) {
+            return linhasExibidas;
+        }
+        const idxAtual = linhasExibidas.findIndex((item) => item.ehMesAtual);
+        if (idxAtual >= 0) {
+            const inicio = Math.max(0, idxAtual - 12);
+            const fim = Math.min(linhasExibidas.length, idxAtual + 48);
+            return linhasExibidas.slice(inicio, fim);
+        }
+        if (filtroVisual === "historico") {
+            return linhasExibidas.slice(-48);
+        }
+        return linhasExibidas.slice(0, 60);
+    }, [linhasExibidas, mostrarTodosMeses, termoBusca, filtroVisual]);
+
     // 6. Rolar para o item indicado (tabela ou card)
     const scrollToLinha = (dataStr) => {
         if (!dataStr) return;
@@ -335,6 +353,9 @@ export default function Insights() {
             setFiltroVisual("todos");
         }
         setTermoBusca("");
+        if (!mostrarTodosMeses) {
+            setMostrarTodosMeses(true);
+        }
 
         // Se estiver no modo cards, expande o card do alvo para visualização imediata
         if (modoExibicao === "cards") {
@@ -634,7 +655,7 @@ export default function Insights() {
             {/* ================= VISUALIZAÇÃO: MODO CARTÕES INTERATIVOS (FEED MOBILE) ================= */}
             {modoExibicao === "cards" ? (
                 <FeedCardsMobile>
-                    {linhasExibidas.map((item) => {
+                    {linhasRenderizadas.map((item) => {
                         const dataFormatadaBR = item.data.split("-").reverse().join("/");
                         const expandido = cardExpandido === item.data;
                         return (
@@ -764,7 +785,7 @@ export default function Insights() {
                             </tr>
                         </thead>
                         <tbody>
-                            {linhasExibidas.map((item) => {
+                            {linhasRenderizadas.map((item) => {
                                 const dataFormatadaBR = item.data.split("-").reverse().join("/");
                                 return (
                                     <TrLinha
@@ -824,6 +845,23 @@ export default function Insights() {
                         </tbody>
                     </TabelaProjecao>
                 </TabelaContainer>
+            )}
+
+            {termoBusca.trim() === "" && linhasExibidas.length > 72 && (
+                <BarraPaginacao>
+                    <span>
+                        Exibindo <strong>{linhasRenderizadas.length}</strong> de{" "}
+                        <strong>{linhasExibidas.length}</strong> meses
+                    </span>
+                    <BotaoExpandirTabela
+                        type="button"
+                        onClick={() => setMostrarTodosMeses((prev) => !prev)}
+                    >
+                        {mostrarTodosMeses
+                            ? "Focar no período atual"
+                            : `Mostrar todos os ${linhasExibidas.length} meses (até 2097)`}
+                    </BotaoExpandirTabela>
+                </BarraPaginacao>
             )}
 
             {/* Modal de Ajuste de Saldo Real */}
@@ -1958,5 +1996,40 @@ const BotaoSalvarMes = styled.button`
     &:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+`;
+
+const BarraPaginacao = styled.div`
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.84rem;
+    color: #94a3b8;
+
+    strong {
+        color: #f8fafc;
+    }
+`;
+
+const BotaoExpandirTabela = styled.button`
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+        background: rgba(56, 189, 248, 0.25);
     }
 `;
