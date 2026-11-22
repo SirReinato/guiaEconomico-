@@ -69,6 +69,11 @@ Sempre que uma nova atualização, funcionalidade ou refatoração for solicitad
    * Se durante o desenvolvimento de uma etapa surgirem novos requisitos, bloqueios técnicos ou o usuário alterar decisões arquiteturais, o agente DEVE **atualizar imediatamente as issues e etapas futuras** (seja atualizando os cards no Linear via MCP, seja reescrevendo o roteiro no plano).
    * Nunca prossiga com um plano defasado; o backlog e as próximas etapas devem sempre refletir a realidade mais recente.
 
+5. **Execução Estritamente Incremental (Uma Issue por Vez + Servidor Local para Testes)**:
+   * **EM HIPÓTESE ALGUMA** o agente deve implementar/executar todas as issues de uma vez.
+   * Após o planejamento e a geração das issues, o agente DEVE **parar e aguardar os comandos explícitos do usuário** para seguir **uma issue por vez**, permitindo que o usuário teste cada entrega individualmente (salvo em casos excepcionais em que o usuário autorize explicitamente a execução de tudo em lote).
+   * **Servidor Local Obrigatório ao Iniciar uma Issue**: Sempre que iniciar o desenvolvimento de uma issue, o agente DEVE subir/manter o servidor local em execução (`npm run dev`) para que o usuário possa validar e testar imediatamente cada etapa.
+
 ### 4. Proibição de Arquivos Markdown, Relatórios EGM e Testes na Raiz (`00-anything/`)
 
 * **PROIBIDO** gerar, salvar ou descarregar arquivos de rascunho, drafts, specs temporárias, testes avulsos, relatórios de auditoria/crítica/síntese de agentes EGM (`critic_report.md`, `goldfish_review_report.md`, `implementation_readiness_report.md`, `intermediate_zoom_out_report.md`, `concepts_brief.md`, `design_draft.md` etc.) ou anotações na raiz do repositório.
@@ -512,3 +517,4 @@ Documentos na coleção `configuracoes`:
 | 2026-11-01 | Sincronização cruzada e correção do "Apertou a Fatura" no perfil da Ingrid: congelamento de compras originais de cartões parcelados pelo Renato em "Cartões do Renato (A Pagar)" no ciclo do acordo e injeção automática da cota da parceira na Entrada da fatura. |
 | 2026-11-22 | Adição das regras obrigatórias 3, 4 e 5 no `AGENTS.md`: Gestão e Decomposição de Demandas em Issues (Linear / MCP & Modo Copiável), Proibição de arquivos temporários/EGM/testes na raiz (`00-anything/`) e Dependência Obrigatória do `graphify` com sincronização contínua. |
 | 2026-11-22 | Correção do reflexo mês anterior (`M - 1` → `M`) na projeção de `Insights`, edição manual do Saldo Final por mês a partir de set/2026 (`saldosManuais` + tag `Ajustado manual` + `firestore.rules`) e criação da `CalculadoraFlutuante` global em `Outlet/index.jsx`. |
+| 2026-11-22 | Adição da regra obrigatória 3.5 no `AGENTS.md`: proibição de executar todas as issues de uma vez (execução estritamente uma por vez após comando do usuário) e obrigatoriedade de rodar o servidor local (`npm run dev`) ao iniciar cada issue para testes. |
