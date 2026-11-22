@@ -65,11 +65,24 @@ export function GastosProvider({ children }) {
                 faturasItauRemotas,
                 minhasAssinaturas,
                 meusParcelamentos,
+                parceiroExtras,
             ] = await Promise.all([
                 getGastos(perfil),
                 getFaturasItauAPI(),
                 getAssinaturasAPI(perfil),
                 getParcelamentosFaturaAPI(perfil),
+                isIngrid
+                    ? Promise.all([
+                          getGastosReembolsoMoziAPI(),
+                          getCartoesPersonalizadosAPI("ingrid"),
+                          getAssinaturasReembolsoParceiroAPI("renato"),
+                          getParcelamentosFaturaAPI("renato"),
+                      ])
+                    : Promise.all([
+                          getGastosReembolsoIngridAPI(),
+                          getAssinaturasReembolsoParceiroAPI("ingrid"),
+                          getParcelamentosFaturaAPI("ingrid"),
+                      ]),
             ]);
 
             if (!isMounted) return;
@@ -90,34 +103,23 @@ export function GastosProvider({ children }) {
             setAssinaturas(minhasAssinaturas || []);
             setParcelamentosFatura(meusParcelamentos || {});
 
-            // Limpa do Firestore parcelas órfãs que possam ter sobrado de acordos cancelados
-            removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
+            // Só consulta/limpa no Firestore se realmente houver parcelas órfãs detectadas
+            if (gastosLimpos.length !== (meusGastos || []).length) {
+                removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
+            }
 
             if (isIngrid) {
-                const [reembolsos, cartoesIngrid, assinaturasRenato, parcelamentosRenato] = await Promise.all([
-                    getGastosReembolsoMoziAPI(),
-                    getCartoesPersonalizadosAPI("ingrid"),
-                    getAssinaturasReembolsoParceiroAPI("renato"),
-                    getParcelamentosFaturaAPI("renato"),
-                ]);
-                if (isMounted) {
-                    setGastosReembolsoRenato(reembolsos);
-                    setCartoesPersonalizados(cartoesIngrid || []);
-                    setAssinaturasReembolsoParceiro(assinaturasRenato || []);
-                    setParcelamentosParceiro(parcelamentosRenato || {});
-                }
+                const [reembolsos, cartoesIngrid, assinaturasRenato, parcelamentosRenato] = parceiroExtras;
+                setGastosReembolsoRenato(reembolsos);
+                setCartoesPersonalizados(cartoesIngrid || []);
+                setAssinaturasReembolsoParceiro(assinaturasRenato || []);
+                setParcelamentosParceiro(parcelamentosRenato || {});
             } else {
-                const [reembolsosIngrid, assinaturasIngrid, parcelamentosIngrid] = await Promise.all([
-                    getGastosReembolsoIngridAPI(),
-                    getAssinaturasReembolsoParceiroAPI("ingrid"),
-                    getParcelamentosFaturaAPI("ingrid"),
-                ]);
-                if (isMounted) {
-                    setGastosReembolsoIngrid(reembolsosIngrid);
-                    setGastosReembolsoRenato([]);
-                    setAssinaturasReembolsoParceiro(assinaturasIngrid || []);
-                    setParcelamentosParceiro(parcelamentosIngrid || {});
-                }
+                const [reembolsosIngrid, assinaturasIngrid, parcelamentosIngrid] = parceiroExtras;
+                setGastosReembolsoIngrid(reembolsosIngrid);
+                setGastosReembolsoRenato([]);
+                setAssinaturasReembolsoParceiro(assinaturasIngrid || []);
+                setParcelamentosParceiro(parcelamentosIngrid || {});
             }
         }
         carregar();

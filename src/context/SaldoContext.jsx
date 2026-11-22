@@ -78,7 +78,6 @@ export function SaldoProvider({ children }) {
         } catch (e) {
             console.warn("Erro ao salvar salários no localStorage:", e);
         }
-        salvarSalariosAjustadosAPI(salariosPorMes, perfil);
     }, [salariosPorMes, perfil]);
 
     const adicionarReceita = async (novaReceita) => {
@@ -109,10 +108,14 @@ export function SaldoProvider({ children }) {
 
     // Ajustar salário de um mês específico
     const ajustarSalarioMes = (ano, mes, valor) => {
-        setSalariosPorMes((prev) => ({
-            ...prev,
-            [`${ano}-${mes}`]: valor,
-        }));
+        setSalariosPorMes((prev) => {
+            const atualizado = {
+                ...prev,
+                [`${ano}-${mes}`]: valor,
+            };
+            salvarSalariosAjustadosAPI(atualizado, perfil);
+            return atualizado;
+        });
     };
 
     // Obtém o último salário registrado historicamente em lançamentos
