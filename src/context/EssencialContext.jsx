@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
     adicionarEssencialAPI,
     getEssencial,
@@ -52,16 +52,16 @@ export function EssencialProvider({ children }) {
         };
     }, [perfilAtivo]);
 
-    const adicionarEssencial = async (novoEssencial) => {
+    const adicionarEssencial = useCallback(async (novoEssencial) => {
         const perfil = perfilAtivo || "renato";
         const essencialSalvo = await adicionarEssencialAPI(novoEssencial, perfil);
         if (essencialSalvo) {
             setEssenciais((prev) => [...prev, essencialSalvo]);
         }
         return essencialSalvo;
-    };
+    }, [perfilAtivo]);
 
-    const atualizarEssencial = async (id, dadosAtualizados) => {
+    const atualizarEssencial = useCallback(async (id, dadosAtualizados) => {
         const perfil = perfilAtivo || "renato";
         const atualizado = await atualizarEssencialAPI(id, dadosAtualizados, perfil);
         if (atualizado) {
@@ -70,34 +70,37 @@ export function EssencialProvider({ children }) {
             );
         }
         return atualizado;
-    };
+    }, [perfilAtivo]);
 
-    const removerEssencial = async (id) => {
+    const removerEssencial = useCallback(async (id) => {
         const perfil = perfilAtivo || "renato";
         const sucesso = await removerEssencialAPI(id, perfil);
         if (sucesso) {
             setEssenciais((prev) => prev.filter((item) => item.id !== id));
         }
         return sucesso;
-    };
+    }, [perfilAtivo]);
 
-    const getTotalEssenciais = () => {
+    const getTotalEssenciais = useCallback(() => {
         return essenciais.reduce(
             (acc, item) => acc + parseCurrency(item.valor),
             0
         );
-    };
+    }, [essenciais]);
+
+    const value = useMemo(
+        () => ({
+            essenciais,
+            adicionarEssencial,
+            atualizarEssencial,
+            removerEssencial,
+            getTotalEssenciais,
+        }),
+        [essenciais, adicionarEssencial, atualizarEssencial, removerEssencial, getTotalEssenciais]
+    );
 
     return (
-        <EssencialContext.Provider
-            value={{
-                essenciais,
-                adicionarEssencial,
-                atualizarEssencial,
-                removerEssencial,
-                getTotalEssenciais,
-            }}
-        >
+        <EssencialContext.Provider value={value}>
             {children}
         </EssencialContext.Provider>
     );

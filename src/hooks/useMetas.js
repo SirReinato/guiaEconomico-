@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
     getMetas,
@@ -46,10 +46,13 @@ export function useMetas() {
         recarregarMetas();
     }, [recarregarMetas]);
 
-    const metaAtiva = metas.find((m) => m.id === metaAtivaId) || metas[0] || null;
+    const metaAtiva = useMemo(
+        () => metas.find((m) => m.id === metaAtivaId) || metas[0] || null,
+        [metas, metaAtivaId]
+    );
 
     // Criar nova meta
-    const criarMeta = async (dadosMeta) => {
+    const criarMeta = useCallback(async (dadosMeta) => {
         const criada = await adicionarMetaAPI(dadosMeta, perfil);
         if (criada) {
             setMetas((prev) => [criada, ...prev]);
@@ -57,10 +60,10 @@ export function useMetas() {
             return criada;
         }
         return null;
-    };
+    }, [perfil]);
 
     // Atualizar meta
-    const editarMeta = async (id, dadosAtualizados) => {
+    const editarMeta = useCallback(async (id, dadosAtualizados) => {
         const atualizada = await atualizarMetaAPI(id, dadosAtualizados, perfil);
         if (atualizada) {
             setMetas((prev) =>
@@ -69,10 +72,10 @@ export function useMetas() {
             return atualizada;
         }
         return null;
-    };
+    }, [perfil]);
 
     // Excluir meta
-    const excluirMeta = async (id) => {
+    const excluirMeta = useCallback(async (id) => {
         const ok = await removerMetaAPI(id, perfil);
         if (ok) {
             setMetas((prev) => {
@@ -85,10 +88,10 @@ export function useMetas() {
             return true;
         }
         return false;
-    };
+    }, [metaAtivaId, perfil]);
 
     // Gerar ou atualizar plano de IA para uma meta específica
-    const gerarPlanoIA = async (meta, contextoFinanceiro, cenarios) => {
+    const gerarPlanoIA = useCallback(async (meta, contextoFinanceiro, cenarios) => {
         if (!meta || !meta.id) return null;
         setGerandoPlano(true);
         try {
@@ -106,20 +109,35 @@ export function useMetas() {
             setGerandoPlano(false);
         }
         return null;
-    };
+    }, [perfil]);
 
-    return {
-        metas,
-        metaAtiva,
-        metaAtivaId,
-        setMetaAtivaId,
-        carregando,
-        gerandoPlano,
-        erro,
-        criarMeta,
-        editarMeta,
-        excluirMeta,
-        gerarPlanoIA,
-        recarregarMetas,
-    };
+    return useMemo(
+        () => ({
+            metas,
+            metaAtiva,
+            metaAtivaId,
+            setMetaAtivaId,
+            carregando,
+            gerandoPlano,
+            erro,
+            criarMeta,
+            editarMeta,
+            excluirMeta,
+            gerarPlanoIA,
+            recarregarMetas,
+        }),
+        [
+            metas,
+            metaAtiva,
+            metaAtivaId,
+            carregando,
+            gerandoPlano,
+            erro,
+            criarMeta,
+            editarMeta,
+            excluirMeta,
+            gerarPlanoIA,
+            recarregarMetas,
+        ]
+    );
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { salvarAporteMesConfirmado } from "../services/reservaService";
 
 const MesContext = createContext();
@@ -59,18 +59,18 @@ export function MesProvider({ children }) {
     const chaveMesAtual = `${ano}-${String(mesIndex + 1).padStart(2, "0")}`;
     const estaPago = mesesPagos.includes(chaveMesAtual);
 
-    const formatarMesAno = (date) => {
+    const formatarMesAno = useCallback((date) => {
         const str = date.toLocaleDateString("pt-BR", {
             month: "long",
             year: "numeric",
         });
         return str.charAt(0).toUpperCase() + str.slice(1);
-    };
+    }, []);
 
-    const nomeMesAno = formatarMesAno(mesReferencia);
+    const nomeMesAno = useMemo(() => formatarMesAno(mesReferencia), [formatarMesAno, mesReferencia]);
 
     // Confirma que tudo do mês foi pago e avança para o próximo mês
-    const confirmarMesPago = async (valorSobra = null) => {
+    const confirmarMesPago = useCallback(async (valorSobra = null) => {
         if (!mesesPagos.includes(chaveMesAtual)) {
             setMesesPagos((prev) => [...prev, chaveMesAtual]);
         }
@@ -83,38 +83,53 @@ export function MesProvider({ children }) {
         }
         // Avança para o mês seguinte
         setMesReferencia(new Date(ano, mesIndex + 1, 1));
-    };
+    }, [ano, chaveMesAtual, mesIndex, mesesPagos]);
 
     // Navegação manual entre meses
-    const avancarMes = () => {
+    const avancarMes = useCallback(() => {
         setMesReferencia((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    };
+    }, []);
 
-    const voltarMes = () => {
+    const voltarMes = useCallback(() => {
         setMesReferencia((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    };
+    }, []);
 
-    const irParaMesAtual = () => {
+    const irParaMesAtual = useCallback(() => {
         const h = new Date();
         setMesReferencia(new Date(h.getFullYear(), h.getMonth(), 1));
-    };
+    }, []);
+
+    const value = useMemo(
+        () => ({
+            mesReferencia,
+            ano,
+            mesIndex,
+            nomeMesAno,
+            isPendenteVirada,
+            estaPago,
+            confirmarMesPago,
+            avancarMes,
+            voltarMes,
+            irParaMesAtual,
+            formatarMesAno,
+        }),
+        [
+            mesReferencia,
+            ano,
+            mesIndex,
+            nomeMesAno,
+            isPendenteVirada,
+            estaPago,
+            confirmarMesPago,
+            avancarMes,
+            voltarMes,
+            irParaMesAtual,
+            formatarMesAno,
+        ]
+    );
 
     return (
-        <MesContext.Provider
-            value={{
-                mesReferencia,
-                ano,
-                mesIndex,
-                nomeMesAno,
-                isPendenteVirada,
-                estaPago,
-                confirmarMesPago,
-                avancarMes,
-                voltarMes,
-                irParaMesAtual,
-                formatarMesAno,
-            }}
-        >
+        <MesContext.Provider value={value}>
             {children}
         </MesContext.Provider>
     );

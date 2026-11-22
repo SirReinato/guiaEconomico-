@@ -65,11 +65,24 @@ export function GastosProvider({ children }) {
                 faturasItauRemotas,
                 minhasAssinaturas,
                 meusParcelamentos,
+                parceiroExtras,
             ] = await Promise.all([
                 getGastos(perfil),
                 getFaturasItauAPI(),
                 getAssinaturasAPI(perfil),
                 getParcelamentosFaturaAPI(perfil),
+                isIngrid
+                    ? Promise.all([
+                          getGastosReembolsoMoziAPI(),
+                          getCartoesPersonalizadosAPI("ingrid"),
+                          getAssinaturasReembolsoParceiroAPI("renato"),
+                          getParcelamentosFaturaAPI("renato"),
+                      ])
+                    : Promise.all([
+                          getGastosReembolsoIngridAPI(),
+                          getAssinaturasReembolsoParceiroAPI("ingrid"),
+                          getParcelamentosFaturaAPI("ingrid"),
+                      ]),
             ]);
 
             if (!isMounted) return;
@@ -90,34 +103,23 @@ export function GastosProvider({ children }) {
             setAssinaturas(minhasAssinaturas || []);
             setParcelamentosFatura(meusParcelamentos || {});
 
-            // Limpa do Firestore parcelas órfãs que possam ter sobrado de acordos cancelados
-            removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
+            // Só consulta/limpa no Firestore se realmente houver parcelas órfãs detectadas
+            if (gastosLimpos.length !== (meusGastos || []).length) {
+                removerGastosOrfaosParcelamentoAPI(idsValidos, perfil);
+            }
 
             if (isIngrid) {
-                const [reembolsos, cartoesIngrid, assinaturasRenato, parcelamentosRenato] = await Promise.all([
-                    getGastosReembolsoMoziAPI(),
-                    getCartoesPersonalizadosAPI("ingrid"),
-                    getAssinaturasReembolsoParceiroAPI("renato"),
-                    getParcelamentosFaturaAPI("renato"),
-                ]);
-                if (isMounted) {
-                    setGastosReembolsoRenato(reembolsos);
-                    setCartoesPersonalizados(cartoesIngrid || []);
-                    setAssinaturasReembolsoParceiro(assinaturasRenato || []);
-                    setParcelamentosParceiro(parcelamentosRenato || {});
-                }
+                const [reembolsos, cartoesIngrid, assinaturasRenato, parcelamentosRenato] = parceiroExtras;
+                setGastosReembolsoRenato(reembolsos);
+                setCartoesPersonalizados(cartoesIngrid || []);
+                setAssinaturasReembolsoParceiro(assinaturasRenato || []);
+                setParcelamentosParceiro(parcelamentosRenato || {});
             } else {
-                const [reembolsosIngrid, assinaturasIngrid, parcelamentosIngrid] = await Promise.all([
-                    getGastosReembolsoIngridAPI(),
-                    getAssinaturasReembolsoParceiroAPI("ingrid"),
-                    getParcelamentosFaturaAPI("ingrid"),
-                ]);
-                if (isMounted) {
-                    setGastosReembolsoIngrid(reembolsosIngrid);
-                    setGastosReembolsoRenato([]);
-                    setAssinaturasReembolsoParceiro(assinaturasIngrid || []);
-                    setParcelamentosParceiro(parcelamentosIngrid || {});
-                }
+                const [reembolsosIngrid, assinaturasIngrid, parcelamentosIngrid] = parceiroExtras;
+                setGastosReembolsoIngrid(reembolsosIngrid);
+                setGastosReembolsoRenato([]);
+                setAssinaturasReembolsoParceiro(assinaturasIngrid || []);
+                setParcelamentosParceiro(parcelamentosIngrid || {});
             }
         }
         carregar();
@@ -1212,48 +1214,67 @@ export function GastosProvider({ children }) {
         return true;
     };
 
+    const chaveMesAtual = getChaveMes(mesReferencia);
+
+    const value = useMemo(
+        () => ({
+            gastos,
+            adicionarGasto,
+            atualizarGasto,
+            removerGasto,
+            getIntervaloFatura,
+            getGastosDoCiclo,
+            getFaturaPorCartao,
+            getFaturaTotalCartao,
+            getEssenciais,
+            getLivres,
+            getInvestimentos,
+            getGanhosMozi,
+            // Novos recursos multi-perfil e integração
+            cartoesAtivos,
+            adicionarCartaoPersonalizado,
+            removerCartaoPersonalizado,
+            faturasItau,
+            salvarFaturaItauMes,
+            gastosReembolsoRenato,
+            gastosReembolsoIngrid,
+            chaveMesAtual,
+            salvarAjusteFaturaCartao,
+            getAjusteFaturaCartao,
+            // Assinaturas Recorrentes
+            assinaturas,
+            adicionarAssinatura,
+            atualizarAssinatura,
+            cancelarAssinatura,
+            reativarAssinatura,
+            removerAssinatura,
+            isAssinaturaValidaNoCiclo,
+            // Apertou a Fatura
+            parcelamentosFatura,
+            parcelamentosParceiro,
+            salvarParcelamentoFatura,
+            cancelarParcelamentoFatura,
+            getAcordoAtivoCartaoCiclo,
+        }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            gastos,
+            cartoesAtivos,
+            faturasItau,
+            gastosReembolsoRenato,
+            gastosReembolsoIngrid,
+            chaveMesAtual,
+            assinaturas,
+            parcelamentosFatura,
+            parcelamentosParceiro,
+            mesReferencia,
+            perfil,
+            isIngrid,
+        ]
+    );
+
     return (
-        <GastosContext.Provider
-            value={{
-                gastos,
-                adicionarGasto,
-                atualizarGasto,
-                removerGasto,
-                getIntervaloFatura,
-                getGastosDoCiclo,
-                getFaturaPorCartao,
-                getFaturaTotalCartao,
-                getEssenciais,
-                getLivres,
-                getInvestimentos,
-                getGanhosMozi,
-                // Novos recursos multi-perfil e integração
-                cartoesAtivos,
-                adicionarCartaoPersonalizado,
-                removerCartaoPersonalizado,
-                faturasItau,
-                salvarFaturaItauMes,
-                gastosReembolsoRenato,
-                gastosReembolsoIngrid,
-                chaveMesAtual: getChaveMes(mesReferencia),
-                salvarAjusteFaturaCartao,
-                getAjusteFaturaCartao,
-                // Assinaturas Recorrentes
-                assinaturas,
-                adicionarAssinatura,
-                atualizarAssinatura,
-                cancelarAssinatura,
-                reativarAssinatura,
-                removerAssinatura,
-                isAssinaturaValidaNoCiclo,
-                // Apertou a Fatura
-                parcelamentosFatura,
-                parcelamentosParceiro,
-                salvarParcelamentoFatura,
-                cancelarParcelamentoFatura,
-                getAcordoAtivoCartaoCiclo,
-            }}
-        >
+        <GastosContext.Provider value={value}>
             {children}
         </GastosContext.Provider>
     );
