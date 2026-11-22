@@ -190,7 +190,8 @@ guiaEconomico-/
 ├── public/
 │   ├── data/gastos.json, saldo.json   # Dados estáticos legados
 │   ├── offline.html           # Fallback offline do PWA
-│   └── pwa-192x192.png, pwa-512x512.png
+│   ├── favicon.svg, favicon-32x32.png, apple-touch-icon.png # Ícones do navegador e iOS
+│   └── pwa-192x192.png, pwa-512x512.png, pwa-maskable-512x512.png # Ícones do PWA (any + maskable)
 ├── scripts/
 │   └── seedFirestore.js       # Seed db.json → Firestore (saldo, essenciais, gastos)
 ├── src/
@@ -518,6 +519,7 @@ Documentos na coleção `configuracoes`:
 | 2026-11-22 | Adição das regras obrigatórias 3, 4 e 5 no `AGENTS.md`: Gestão e Decomposição de Demandas em Issues (Linear / MCP & Modo Copiável), Proibição de arquivos temporários/EGM/testes na raiz (`00-anything/`) e Dependência Obrigatória do `graphify` com sincronização contínua. |
 | 2026-11-22 | Correção do reflexo mês anterior (`M - 1` → `M`) na projeção de `Insights`, edição manual do Saldo Final por mês a partir de set/2026 (`saldosManuais` + tag `Ajustado manual` + `firestore.rules`) e criação da `CalculadoraFlutuante` global em `Outlet/index.jsx`. |
 | 2026-11-22 | Adição da regra obrigatória 3.5 no `AGENTS.md`: proibição de executar todas as issues de uma vez (execução estritamente uma por vez após comando do usuário) e obrigatoriedade de rodar o servidor local (`npm run dev`) ao iniciar cada issue para testes. |
+| 2026-11-22 | Criação dos novos ícones do PWA e navegador (`favicon.svg`, `favicon-32x32.png`, `apple-touch-icon.png`, `pwa-192x192.png`, `pwa-512x512.png`, `pwa-maskable-512x512.png`) baseados na identidade visual de `Logo/index.jsx` e configuração no `index.html` e `vite.config.js` (`SIR-131`, `SIR-132`, `SIR-133`). |
 | 2026-11-22 | **SIR-134 (`perf/code-splitting-e-manual-chunks`)**: implementado code-splitting por rota com `React.lazy` + `Suspense` em `src/routes/AppRoutes.jsx`, `manualChunks` (`vendor-react`, `vendor-firebase`, `vendor-charts`, `vendor-ui`) e exclusão de endpoints Firebase do `runtimeCaching` em `vite.config.js`. |
 | 2026-11-22 | **SIR-135 (`perf/firestore-cache-e-boot`)**: habilitado `persistentLocalCache` (`persistentMultipleTabManager`) em `src/config/firebase.js`, removido `setDoc` automático no boot de `SaldoContext.jsx`, paralelizadas as leituras iniciais de `GastosContext.jsx` e condicionada a limpeza de parcelas órfãs apenas quando detectadas. |
 | 2026-11-22 | **SIR-136 (`perf/memoizar-contexts`)**: memoizados `value`s e callbacks com `useMemo` e `useCallback` em `EssencialContext.jsx`, `MesContext.jsx`, `SaldoContext.jsx` e `GastosContext.jsx` para evitar re-renderizações em cascata. |
