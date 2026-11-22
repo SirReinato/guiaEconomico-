@@ -105,9 +105,12 @@ export function usePlanoMeta(metaAtiva) {
         });
     }, [metaAtiva, contextoFinanceiro]);
 
-    return {
-        contextoFinanceiro,
-        cenarios,
-        carregandoContexto,
-    };
+    return useMemo(
+        () => ({
+            contextoFinanceiro,
+            cenarios,
+            carregandoContexto,
+        }),
+        [contextoFinanceiro, cenarios, carregandoContexto]
+    );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../context/AuthContext";
 import { useMetas } from "../../hooks/useMetas";
@@ -9,8 +9,9 @@ import CenariosMeta from "../../components/CenariosMeta";
 import PlanoIA from "../../components/PlanoIA";
 import PlanoPrincipalDetalhado from "../../components/PlanoPrincipalDetalhado";
 import GraficoEvolucaoMeta from "../../components/GraficoEvolucaoMeta";
-import ModalNovaMeta from "../../components/ModalNovaMeta";
 import { formatCurrency } from "../../utils/currencyUtils";
+
+const ModalNovaMeta = lazy(() => import("../../components/ModalNovaMeta"));
 
 export default function Metas() {
     const { temAcessoInsights } = useAuth() || {};
@@ -164,12 +165,14 @@ export default function Metas() {
 
             {/* Modal de Criação / Edição de Meta */}
             {modalAberto && (
-                <ModalNovaMeta
-                    onClose={() => setModalAberto(false)}
-                    onSave={handleSalvarMeta}
-                    metaEditando={metaParaEditar}
-                    dadosInsight={contextoFinanceiro}
-                />
+                <Suspense fallback={null}>
+                    <ModalNovaMeta
+                        onClose={() => setModalAberto(false)}
+                        onSave={handleSalvarMeta}
+                        metaEditando={metaParaEditar}
+                        dadosInsight={contextoFinanceiro}
+                    />
+                </Suspense>
             )}
         </PaginaContainer>
     );
