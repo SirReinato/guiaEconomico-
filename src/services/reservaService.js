@@ -108,3 +108,26 @@ export async function salvarAporteMesConfirmado(chaveMes, valorSobra, perfil = "
         aportesConfirmados: novosAportes,
     }, perfil);
 }
+
+/**
+ * Salva ou remove um ajuste manual de Saldo Final para um mês específico (chave YYYY-MM).
+ * Passar `valorFinal === null` remove o ajuste manual daquele mês.
+ */
+export async function salvarSaldoManualMes(chaveMes, valorFinal, perfil = "renato") {
+    const configAtual = await getReservaConfig(perfil);
+    const saldosAtuais = { ...(configAtual.saldosManuais || {}) };
+
+    if (valorFinal === null || valorFinal === undefined || Number.isNaN(Number(valorFinal))) {
+        delete saldosAtuais[chaveMes];
+    } else {
+        saldosAtuais[chaveMes] = Number(valorFinal);
+    }
+
+    return await salvarReservaConfig(
+        {
+            ...configAtual,
+            saldosManuais: saldosAtuais,
+        },
+        perfil
+    );
+}
