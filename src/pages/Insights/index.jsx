@@ -4,12 +4,17 @@ import { useMes } from "../../context/MesContext";
 import { useSaldo } from "../../context/SaldoContext";
 import { useResumoFinanceiro } from "../../hooks/useResumoFinanceiro";
 import { getTaxaSelicAtual } from "../../services/selicService";
-import { getReservaConfig, salvarReservaConfig } from "../../services/reservaService";
+import {
+    getReservaConfig,
+    salvarReservaConfig,
+    salvarSaldoManualMes,
+} from "../../services/reservaService";
 import { gerarProjecaoReserva } from "../../utils/reservaCalculos";
 import { formatCurrency, parseCurrency } from "../../utils/currencyUtils";
 import ModalAjusteReserva from "../../components/ModalAjusteReserva";
 import { useProjecaoSaldo } from "../../hooks/useProjecaoSaldo";
 import { useEssencial } from "../../context/EssencialContext";
+import { useGastos } from "../../context/GastosContext";
 import { useAuth } from "../../context/AuthContext";
 import AcessoRestritoInsights from "../../components/AcessoRestritoInsights";
 
@@ -19,6 +24,7 @@ export default function Insights() {
     const { getSalarioDoMes, getEntradasDoMes } = useSaldo() || {};
     const { saldoLiquido } = useResumoFinanceiro() || {};
     const { essenciais } = useEssencial() || {};
+    const { getFaturaTotalCartao, getGanhosMozi } = useGastos() || {};
     const projecoesFuturas = useProjecaoSaldo(36);
 
     const [selicData, setSelicData] = useState({
@@ -30,6 +36,9 @@ export default function Insights() {
 
     const [configReserva, setConfigReserva] = useState({});
     const [modalAberto, setModalAberto] = useState(false);
+    const [mesEditando, setMesEditando] = useState(null);
+    const [valorEditandoInput, setValorEditandoInput] = useState("");
+    const [salvandoAjusteMes, setSalvandoAjusteMes] = useState(false);
 
     const [filtroVisual, setFiltroVisual] = useState("todos"); // "todos" | "historico" | "projecao" | "marcos"
     const [termoBusca, setTermoBusca] = useState("");
@@ -106,6 +115,53 @@ export default function Insights() {
         setConfigReserva(atualizado);
     };
 
+    const abrirEdicaoSaldoMes = (item, e) => {
+        if (e) e.stopPropagation();
+        const chave = item.data.slice(0, 7);
+        setMesEditando({
+            chave,
+            mes: item.mes,
+            ano: item.data.slice(0, 4),
+            valorAtual: item.valorFinal,
+            ajustadoManual: Boolean(item.ajustadoManual),
+        });
+        setValorEditandoInput(String(Number(item.valorFinal || 0).toFixed(2)).replace(".", ","));
+    };
+
+    const handleSalvarSaldoMes = async (e) => {
+        e.preventDefault();
+        if (!mesEditando) return;
+        const valorNumerico = parseCurrency(valorEditandoInput);
+        if (!Number.isFinite(valorNumerico)) return;
+
+        setSalvandoAjusteMes(true);
+        const atualizado = await salvarSaldoManualMes(
+            mesEditando.chave,
+            valorNumerico,
+            perfilAtivo || "renato"
+        );
+        if (atualizado) {
+            setConfigReserva(atualizado);
+        }
+        setSalvandoAjusteMes(false);
+        setMesEditando(null);
+    };
+
+    const handleRemoverAjusteMes = async () => {
+        if (!mesEditando) return;
+        setSalvandoAjusteMes(true);
+        const atualizado = await salvarSaldoManualMes(
+            mesEditando.chave,
+            null,
+            perfilAtivo || "renato"
+        );
+        if (atualizado) {
+            setConfigReserva(atualizado);
+        }
+        setSalvandoAjusteMes(false);
+        setMesEditando(null);
+    };
+
     // 3. Obter salário do mês atual (conforme inserido pelo usuário no sistema)
     const salarioAtual = useMemo(() => {
         const ref = mesReferencia || new Date();
@@ -152,6 +208,42 @@ export default function Insights() {
         return mapa;
     }, [projecoesFuturas]);
 
+    // Mapa de sobras/déficits reais mensais desde 2026-09 até o mês de referência
+    // (mesma regra da Home: entradas + ganhosMozi - faturaCartao - essenciais)
+    const mapaSobrasReais = useMemo(() => {
+        const mapa = {};
+        const ref = mesReferencia || new Date();
+        const anoFim = ref.getFullYear();
+        const mesFim = ref.getMonth();
+
+        let ano = 2026;
+        let mes = 8; // Setembro (0-indexed)
+        let guarda = 0;
+
+        while ((ano < anoFim || (ano === anoFim && mes <= mesFim)) && guarda < 120) {
+            const dataRef = new Date(ano, mes, 15);
+            const chave = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+            const totalReceitasBase = getEntradasDoMes ? parseCurrency(getEntradasDoMes(dataRef)) : 0;
+            const { totalGeral: totalGanhosMozi = 0 } = getGanhosMozi
+                ? getGanhosMozi("atual", dataRef)
+                : {};
+            const totalGastosCartao = getFaturaTotalCartao ? getFaturaTotalCartao("atual", dataRef) : 0;
+            const sobra = Number(
+                (totalReceitasBase + totalGanhosMozi - (totalGastosCartao + totalEssenciais)).toFixed(2)
+            );
+            mapa[chave] = sobra;
+
+            mes++;
+            if (mes > 11) {
+                mes = 0;
+                ano++;
+            }
+            guarda++;
+        }
+
+        return mapa;
+    }, [mesReferencia, getEntradasDoMes, getGanhosMozi, getFaturaTotalCartao, totalEssenciais]);
+
     // 4. Executar cálculo de projeção matemática completa (apenas para o proprietário)
     const resultadoCalculo = useMemo(() => {
         if (!temAcessoInsights) {
@@ -175,10 +267,22 @@ export default function Insights() {
             configManual: configReserva,
             mesReferencia: mesReferencia || new Date(),
             mapaProjecoes,
+            mapaSobrasReais,
             totalEssenciais,
             isIngrid,
         });
-    }, [temAcessoInsights, salarioAtual, sobraMesAtual, selicData.taxaMensal, configReserva, mesReferencia, mapaProjecoes, totalEssenciais, isIngrid]);
+    }, [
+        temAcessoInsights,
+        salarioAtual,
+        sobraMesAtual,
+        selicData.taxaMensal,
+        configReserva,
+        mesReferencia,
+        mapaProjecoes,
+        mapaSobrasReais,
+        totalEssenciais,
+        isIngrid,
+    ]);
 
     const {
         linhas,
@@ -563,10 +667,26 @@ export default function Insights() {
 
                                 <CardBodyMobile>
                                     <BlocoSaldoMobile>
-                                        <RotuloMobile>Saldo na Caixinha</RotuloMobile>
-                                        <ValorSaldoMobile $tipoMeta={item.statusMeta?.tipo}>
-                                            {formatCurrency(item.valorFinal)}
-                                        </ValorSaldoMobile>
+                                        <RotuloSaldoRowMobile>
+                                            <RotuloMobile>Saldo na Caixinha</RotuloMobile>
+                                            {item.ajustadoManual && (
+                                                <BadgeAjusteManual>Ajustado manual</BadgeAjusteManual>
+                                            )}
+                                        </RotuloSaldoRowMobile>
+                                        <ValorSaldoRowMobile>
+                                            <ValorSaldoMobile $tipoMeta={item.statusMeta?.tipo}>
+                                                {formatCurrency(item.valorFinal)}
+                                            </ValorSaldoMobile>
+                                            {item.data >= "2026-09-01" && (
+                                                <BotaoEditarSaldoMes
+                                                    type="button"
+                                                    onClick={(e) => abrirEdicaoSaldoMes(item, e)}
+                                                    title="Editar saldo final deste mês"
+                                                >
+                                                    ✏️
+                                                </BotaoEditarSaldoMes>
+                                            )}
+                                        </ValorSaldoRowMobile>
                                     </BlocoSaldoMobile>
 
                                     <GridPillsMobile>
@@ -674,7 +794,21 @@ export default function Insights() {
                                             +{formatCurrency(item.rendimento)}
                                         </TdRendimento>
                                         <TdSaldoFinal $tipoMeta={item.statusMeta?.tipo}>
-                                            {formatCurrency(item.valorFinal)}
+                                            <SaldoFinalWrapper>
+                                                <span>{formatCurrency(item.valorFinal)}</span>
+                                                {item.ajustadoManual && (
+                                                    <BadgeAjusteManual>Ajustado manual</BadgeAjusteManual>
+                                                )}
+                                                {item.data >= "2026-09-01" && (
+                                                    <BotaoEditarSaldoMes
+                                                        type="button"
+                                                        onClick={(e) => abrirEdicaoSaldoMes(item, e)}
+                                                        title="Editar saldo final deste mês"
+                                                    >
+                                                        ✏️
+                                                    </BotaoEditarSaldoMes>
+                                                )}
+                                            </SaldoFinalWrapper>
                                         </TdSaldoFinal>
                                         <TdProtegido>
                                             {item.mesesProtegidos.toFixed(1)}x
@@ -700,6 +834,71 @@ export default function Insights() {
                     onClose={() => setModalAberto(false)}
                     onSave={handleSalvarConfig}
                 />
+            )}
+
+            {/* Modal de Ajuste Manual do Saldo Final de um Mês */}
+            {mesEditando && (
+                <ModalAjusteMesOverlay onClick={() => !salvandoAjusteMes && setMesEditando(null)}>
+                    <ModalAjusteMesCard onClick={(e) => e.stopPropagation()}>
+                        <ModalAjusteMesHeader>
+                            <div>
+                                <ModalAjusteMesTitulo>
+                                    Ajustar Saldo Final — {mesEditando.mes}/{mesEditando.ano}
+                                </ModalAjusteMesTitulo>
+                                <ModalAjusteMesSubtitulo>
+                                    Os meses seguintes continuarão a projeção a partir deste valor.
+                                </ModalAjusteMesSubtitulo>
+                            </div>
+                            <BotaoFecharModalMes
+                                type="button"
+                                onClick={() => setMesEditando(null)}
+                                disabled={salvandoAjusteMes}
+                            >
+                                &times;
+                            </BotaoFecharModalMes>
+                        </ModalAjusteMesHeader>
+
+                        <form onSubmit={handleSalvarSaldoMes}>
+                            <ModalAjusteMesLabel>Novo Saldo Final (R$)</ModalAjusteMesLabel>
+                            <ModalAjusteMesInput
+                                type="text"
+                                inputMode="decimal"
+                                autoFocus
+                                placeholder="Ex: 1.250,00"
+                                value={valorEditandoInput}
+                                onChange={(e) => setValorEditandoInput(e.target.value)}
+                            />
+                            <ModalAjusteMesPreview>
+                                Prévia:{" "}
+                                <strong>
+                                    {formatCurrency(parseCurrency(valorEditandoInput || "0"))}
+                                </strong>
+                            </ModalAjusteMesPreview>
+
+                            <ModalAjusteMesAcoes>
+                                {mesEditando.ajustadoManual && (
+                                    <BotaoRestaurarMes
+                                        type="button"
+                                        onClick={handleRemoverAjusteMes}
+                                        disabled={salvandoAjusteMes}
+                                    >
+                                        Restaurar automático
+                                    </BotaoRestaurarMes>
+                                )}
+                                <BotaoCancelarMes
+                                    type="button"
+                                    onClick={() => setMesEditando(null)}
+                                    disabled={salvandoAjusteMes}
+                                >
+                                    Cancelar
+                                </BotaoCancelarMes>
+                                <BotaoSalvarMes type="submit" disabled={salvandoAjusteMes}>
+                                    {salvandoAjusteMes ? "Salvando..." : "Salvar Ajuste"}
+                                </BotaoSalvarMes>
+                            </ModalAjusteMesAcoes>
+                        </form>
+                    </ModalAjusteMesCard>
+                </ModalAjusteMesOverlay>
             )}
         </ContainerInsights>
     );
@@ -1561,4 +1760,203 @@ const BadgeMeta = styled.span`
     color: ${({ $status }) => $status?.corTexto || "#94a3b8"};
     background: ${({ $status }) => $status?.corFundo || "transparent"};
     border: 1px solid ${({ $status }) => $status?.corBorda || "transparent"};
+`;
+
+const SaldoFinalWrapper = styled.div`
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+`;
+
+const RotuloSaldoRowMobile = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+`;
+
+const ValorSaldoRowMobile = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+`;
+
+const BadgeAjusteManual = styled.span`
+    display: inline-flex;
+    align-items: center;
+    font-family: inherit;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+`;
+
+const BotaoEditarSaldoMes = styled.button`
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    line-height: 1;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: rgba(56, 189, 248, 0.18);
+        border-color: #38bdf8;
+        color: #ffffff;
+    }
+`;
+
+const ModalAjusteMesOverlay = styled.div`
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.78);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 1200;
+`;
+
+const ModalAjusteMesCard = styled.div`
+    width: 100%;
+    max-width: 420px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+`;
+
+const ModalAjusteMesHeader = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+`;
+
+const ModalAjusteMesTitulo = styled.h3`
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f8fafc;
+    text-transform: capitalize;
+`;
+
+const ModalAjusteMesSubtitulo = styled.p`
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: #94a3b8;
+`;
+
+const BotaoFecharModalMes = styled.button`
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+        color: #f8fafc;
+    }
+`;
+
+const ModalAjusteMesLabel = styled.label`
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin-bottom: 6px;
+`;
+
+const ModalAjusteMesInput = styled.input`
+    width: 100%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: #f8fafc;
+    font-size: 1rem;
+    font-family: monospace;
+    outline: none;
+
+    &:focus {
+        border-color: #38bdf8;
+    }
+`;
+
+const ModalAjusteMesPreview = styled.div`
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+
+    strong {
+        color: #34d399;
+    }
+`;
+
+const ModalAjusteMesAcoes = styled.div`
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+`;
+
+const BotaoRestaurarMes = styled.button`
+    margin-right: auto;
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    color: #f87171;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: rgba(248, 113, 113, 0.22);
+    }
+`;
+
+const BotaoCancelarMes = styled.button`
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: #334155;
+    }
+`;
+
+const BotaoSalvarMes = styled.button`
+    background: linear-gradient(135deg, #820ad1 0%, #00b3ff 100%);
+    border: none;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
 `;
