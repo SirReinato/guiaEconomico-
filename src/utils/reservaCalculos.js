@@ -79,6 +79,7 @@ export function gerarProjecaoReserva({
     configManual = {},
     mesReferencia = new Date(),
     mapaProjecoes = {},
+    mapaSobrasReais = {},
     totalEssenciais = 0,
     isIngrid = false,
 } = {}) {
@@ -88,7 +89,6 @@ export function gerarProjecaoReserva({
     const anoRef = mesReferencia ? mesReferencia.getFullYear() : new Date().getFullYear();
     const mesRefIndex = mesReferencia ? mesReferencia.getMonth() : new Date().getMonth();
     const chaveMesAtual = `${anoRef}-${String(mesRefIndex + 1).padStart(2, "0")}`;
-    const chaveMesSeguinte = getMesSeguinteChave(chaveMesAtual);
 
     const taxaPadrao =
         configManual?.taxaManual !== undefined && configManual?.taxaManual !== null && configManual.taxaManual > 0
@@ -125,12 +125,25 @@ export function gerarProjecaoReserva({
                 ? Number(configManual.saldoReal)
                 : 0;
 
-        const ehMesAtualInicio = chaveInicio === chaveMesAtual;
-        const poupancaInicial = saldoSobraMes !== null && Number.isFinite(Number(saldoSobraMes))
-            ? Number(saldoSobraMes)
-            : poupancaPadraoFutura;
+        const saldoManualInicio = configManual?.saldosManuais?.[chaveInicio];
+        const temSaldoManualInicio = saldoManualInicio !== undefined && saldoManualInicio !== null;
 
-        const valorFinalInicio = saldoInicialConfig > 0 ? saldoInicialConfig : Math.max(0, poupancaInicial);
+        const ehMesAtualInicio = chaveInicio === chaveMesAtual;
+        const chaveMesAnteriorInicio = getMesAnteriorChave(chaveInicio);
+        const aporteAnteriorInicio = configManual?.aportesConfirmados?.[chaveMesAnteriorInicio];
+        const poupancaInicial =
+            aporteAnteriorInicio?.sobra !== undefined && aporteAnteriorInicio?.sobra !== null
+                ? Number(aporteAnteriorInicio.sobra)
+                : mapaSobrasReais[chaveMesAnteriorInicio] !== undefined &&
+                  Number.isFinite(Number(mapaSobrasReais[chaveMesAnteriorInicio]))
+                ? Number(mapaSobrasReais[chaveMesAnteriorInicio])
+                : poupancaPadraoFutura;
+
+        const valorFinalInicio = temSaldoManualInicio
+            ? Number(saldoManualInicio)
+            : saldoInicialConfig > 0
+            ? saldoInicialConfig
+            : Math.max(0, poupancaInicial);
         const rendimentoInicio = Number(configManual?.rendimentoManual || 0);
 
         linhas.push({
@@ -145,6 +158,7 @@ export function gerarProjecaoReserva({
             idade: calcularIdade(dataInicioStr),
             ehHistorico: false,
             ehMesAtual: ehMesAtualInicio,
+            ajustadoManual: temSaldoManualInicio,
             mesesProtegidos: salario > 0 ? Number((valorFinalInicio / salario).toFixed(2)) : 0,
             statusMeta: classificarStatusMeta(valorFinalInicio, meta6Meses),
         });
@@ -162,8 +176,13 @@ export function gerarProjecaoReserva({
             const item = { ...DADOS_HISTORICOS_INICIAIS[i] };
             const chaveItem = item.data.slice(0, 7);
             const ehMesAtual = chaveItem === chaveMesAtual;
+            let ajustadoManual = false;
 
-            if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
+            const saldoManualMes = chaveItem >= "2026-09" ? configManual?.saldosManuais?.[chaveItem] : undefined;
+            if (saldoManualMes !== undefined && saldoManualMes !== null) {
+                item.valorFinal = Number(saldoManualMes);
+                ajustadoManual = true;
+            } else if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
                 item.valorFinal = Number(configManual.saldoReal);
                 if (configManual?.rendimentoManual !== undefined && configManual?.rendimentoManual !== null) {
                     item.rendimento = Number(configManual.rendimentoManual);
@@ -177,6 +196,7 @@ export function gerarProjecaoReserva({
                 ...item,
                 ehHistorico: true,
                 ehMesAtual,
+                ajustadoManual,
                 mesesProtegidos,
                 statusMeta,
             });
@@ -203,39 +223,49 @@ export function gerarProjecaoReserva({
         const chaveItem = `${anoCursor}-${strMes}`;
         const chaveMesAnterior = getMesAnteriorChave(chaveItem);
         const ehMesAtual = chaveItem === chaveMesAtual;
-        const ehMesSeguinteAoAtual = chaveItem === chaveMesSeguinte;
 
         let valorInicial = valorAnterior;
         let poupanca = poupancaPadraoFutura;
         let taxa = taxaPadrao;
 
-        const aporteConfirmado =
-            configManual?.aportesConfirmados?.[chaveItem] ||
-            configManual?.aportesConfirmados?.[chaveMesAnterior];
+        // O aporte de cada mês M reflete exclusivamente a sobra/déficit do mês M - 1
+        const aporteConfirmadoAnterior = configManual?.aportesConfirmados?.[chaveMesAnterior];
 
-        if (aporteConfirmado && aporteConfirmado.sobra !== undefined && aporteConfirmado.sobra !== null) {
-            poupanca = Number(aporteConfirmado.sobra);
-        } else if (ehMesAtual) {
-            if (saldoSobraMes !== null && saldoSobraMes !== undefined && Number.isFinite(Number(saldoSobraMes))) {
-                poupanca = Number(saldoSobraMes);
-            }
-        } else if (ehMesSeguinteAoAtual) {
-            if (saldoSobraMes !== null && saldoSobraMes !== undefined && Number.isFinite(Number(saldoSobraMes))) {
-                poupanca = Number(saldoSobraMes);
-            } else if (mapaProjecoes[chaveMesAnterior] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveMesAnterior]))) {
-                poupanca = Number(mapaProjecoes[chaveMesAnterior]);
-            }
-        } else if (mapaProjecoes[chaveMesAnterior] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveMesAnterior]))) {
+        if (
+            aporteConfirmadoAnterior &&
+            aporteConfirmadoAnterior.sobra !== undefined &&
+            aporteConfirmadoAnterior.sobra !== null
+        ) {
+            poupanca = Number(aporteConfirmadoAnterior.sobra);
+        } else if (
+            chaveMesAnterior === chaveMesAtual &&
+            saldoSobraMes !== null &&
+            saldoSobraMes !== undefined &&
+            Number.isFinite(Number(saldoSobraMes))
+        ) {
+            poupanca = Number(saldoSobraMes);
+        } else if (
+            mapaSobrasReais[chaveMesAnterior] !== undefined &&
+            Number.isFinite(Number(mapaSobrasReais[chaveMesAnterior]))
+        ) {
+            poupanca = Number(mapaSobrasReais[chaveMesAnterior]);
+        } else if (
+            mapaProjecoes[chaveMesAnterior] !== undefined &&
+            Number.isFinite(Number(mapaProjecoes[chaveMesAnterior]))
+        ) {
             poupanca = Number(mapaProjecoes[chaveMesAnterior]);
-        } else if (mapaProjecoes[chaveItem] !== undefined && Number.isFinite(Number(mapaProjecoes[chaveItem]))) {
-            poupanca = Number(mapaProjecoes[chaveItem]);
         }
 
         const baseParaRendimento = Math.max(0, valorInicial + poupanca);
         let rendimento = Number((baseParaRendimento * taxa).toFixed(2));
         let valorFinal = Number(Math.max(0, valorInicial + poupanca + rendimento).toFixed(2));
+        let ajustadoManual = false;
 
-        if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
+        const saldoManualMes = chaveItem >= "2026-09" ? configManual?.saldosManuais?.[chaveItem] : undefined;
+        if (saldoManualMes !== undefined && saldoManualMes !== null) {
+            valorFinal = Number(saldoManualMes);
+            ajustadoManual = true;
+        } else if (ehMesAtual && configManual?.saldoReal !== undefined && configManual?.saldoReal !== null) {
             valorFinal = Number(configManual.saldoReal);
             if (configManual?.rendimentoManual !== undefined && configManual?.rendimentoManual !== null) {
                 rendimento = Number(configManual.rendimentoManual);
@@ -259,6 +289,7 @@ export function gerarProjecaoReserva({
             idade,
             ehHistorico: false,
             ehMesAtual,
+            ajustadoManual,
             mesesProtegidos,
             statusMeta,
         });

@@ -7,6 +7,7 @@ import ModalEssencial from "../../components/ModalGastoEssencial";
 import { useShowModals } from "../../hooks/useShowModals";
 import { useAuth } from "../../context/AuthContext";
 import Logo from "../../components/Logo";
+import CalculadoraFlutuante from "../../components/CalculadoraFlutuante";
 
 export default function ContainerGeral() {
     const {
@@ -295,6 +296,7 @@ export default function ContainerGeral() {
                     onSubmit={adicionarEssencial}
                 />
             )}
+            <CalculadoraFlutuante />
         </>
     );
 }

@@ -316,12 +316,13 @@ service cloud.firestore {
 
         // Configurações e aportes da Reserva de Emergência
         (docId in ['reserva', 'reserva_ingrid'] &&
-         data.keys().hasOnly(['saldoReal', 'rendimentoManual', 'taxaManual', 'poupancaFixa', 'aportesConfirmados', 'atualizadoEm']) &&
+         data.keys().hasOnly(['saldoReal', 'rendimentoManual', 'taxaManual', 'poupancaFixa', 'aportesConfirmados', 'saldosManuais', 'atualizadoEm']) &&
          (!('saldoReal' in data) || data.saldoReal == null || data.saldoReal is number) &&
          (!('rendimentoManual' in data) || data.rendimentoManual == null || data.rendimentoManual is number) &&
          (!('taxaManual' in data) || data.taxaManual == null || data.taxaManual is number) &&
          (!('poupancaFixa' in data) || data.poupancaFixa == null || data.poupancaFixa is number) &&
          (!('aportesConfirmados' in data) || (data.aportesConfirmados is map && data.aportesConfirmados.keys().size() <= 200)) &&
+         (!('saldosManuais' in data) || (data.saldosManuais is map && data.saldosManuais.keys().size() <= 200)) &&
          isValidOptionalString('atualizadoEm', data, 0, 50)) ||
 
         // Acordos de parcelamento de fatura ('Apertou a Fatura')
