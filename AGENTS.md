@@ -46,6 +46,53 @@ Para garantir total controle de versão, rastreabilidade e segurança do código
   ```
   Isso permite revisão no GitHub, auditoria detalhada de código e abertura de Pull Request.
 
+### 3. Gestão e Decomposição de Demandas em Issues (Linear / MCP & Modo Copiável)
+
+Sempre que uma nova atualização, funcionalidade ou refatoração for solicitada, o agente DEVE organizar o plano de execução em etapas antes ou durante o desenvolvimento:
+
+1. **Decomposição em Etapas Lógicas e Funcionais**:
+   * Divida a solicitação em issues granulares, sequenciais e independentes (ex: *Fase 1: Configuração do Serviço/API*, *Fase 2: Criação do Hook/Estado*, *Fase 3: Interface e Componentes*, *Fase 4: Rota e Validação Funcional E2E*).
+   * Cada issue deve ser autossuficiente e conter:
+     - **Título claro e semântico** (ex: `feat(auth): implementar useAuth e persistência em localStorage`).
+     - **Objetivo funcional**: o que essa etapa entrega e por que é necessária.
+     - **Passo a passo técnico**: arquivos exatos a criar/alterar e bibliotecas envolvidas.
+     - **Critérios de aceitação (DoD)**: como validar que a etapa foi concluída com sucesso.
+
+2. **Criação de Issues com Linear MCP Ativo**:
+   * Se o ambiente possuir a integração do **Linear via MCP** habilitada, o agente deve **criar e registrar automaticamente essas issues** no projeto/time correspondente do Linear, associando labels, prioridades e estimativas adequadas.
+
+3. **Formato Copiável para Agentes Sem Linear MCP**:
+   * Em todas as respostas ou documentações de planejamento, forneça também um bloco claro com o conteúdo exato da **atividade do momento** e das etapas seguintes.
+   * Esse bloco deve ser estruturado de forma que o desenvolvedor possa simplesmente **copiar e colar o texto em outro agente ou modelo de IA que não tenha o Linear MCP ativo**, e esse agente entenda perfeitamente o contexto, as restrições e o código que deve produzir sem precisar de instruções adicionais.
+
+4. **Replanejamento e Adaptação Dinâmica de Planos Futuros**:
+   * Se durante o desenvolvimento de uma etapa surgirem novos requisitos, bloqueios técnicos ou o usuário alterar decisões arquiteturais, o agente DEVE **atualizar imediatamente as issues e etapas futuras** (seja atualizando os cards no Linear via MCP, seja reescrevendo o roteiro no plano).
+   * Nunca prossiga com um plano defasado; o backlog e as próximas etapas devem sempre refletir a realidade mais recente.
+
+### 4. Proibição de Arquivos Markdown, Relatórios EGM e Testes na Raiz (`00-anything/`)
+
+* **PROIBIDO** gerar, salvar ou descarregar arquivos de rascunho, drafts, specs temporárias, testes avulsos, relatórios de auditoria/crítica/síntese de agentes EGM (`critic_report.md`, `goldfish_review_report.md`, `implementation_readiness_report.md`, `intermediate_zoom_out_report.md`, `concepts_brief.md`, `design_draft.md` etc.) ou anotações na raiz do repositório.
+* A raiz do repositório deve conter **exclusivamente** os arquivos de governança e configuração estruturais (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `package.json`, `vite.config.js` e dotfiles essenciais).
+* **Diretório Obrigatório (`00-anything/`)**: Todos os arquivos de ideação, design, reviews de EGM, relatórios de subagentes, artefatos de testes ou documentações exploratórias DEVEM ser alocados dentro do diretório `00-anything/` na raiz do projeto.
+* **Padrão Obrigatório de Subpastas por Implementação**:
+  Sempre que iniciar uma sessão de EGM, brainstorm, refatoração estrutural, suíte de testes ou planejamento de uma nova feature/implementação, o agente DEVE criar uma nova subpasta dentro de `00-anything/` seguindo rigorosamente o formato:
+  ```text
+  00-anything/{sequencial_2_digitos} - {nome-da-implementacao} {data-yyyy-mm-dd}/
+  ```
+  * Exemplo 1: `00-anything/01 - arquitetura multi-workspace 2026-11-04/`
+  * Exemplo 2: `00-anything/02 - estruturacao home 2026-11-07/`
+* **Isolamento Total do Escopo**: Todos os arquivos que essa estruturação, teste ou execução for produzir devem ser salvos exclusivamente dentro dessa subpasta correspondente. É terminantemente proibido espalhar arquivos auxiliares fora dela.
+* **Numeração Sequencial Contínua**: Verifique as subpastas já existentes em `00-anything/` e incremente o numeral sequencial de 2 dígitos (`01`, `02`, `03`...) em ordem cronológica crescente.
+
+### 5. Dependência Obrigatória: `graphify` (Sincronização Contínua com `AGENTS.md`)
+
+* **Instalação e Presença Obrigatória**: O projeto DEVE obrigatoriamente ter a biblioteca `graphify` instalada como dependência de desenvolvimento (`npm install -D graphify` ou executada via `npx graphify`).
+* **Simbiose e Complementaridade**: O `AGENTS.md` e o `graphify` agem sempre juntos: o `AGENTS.md` fornece o contexto semântico, arquitetural e as regras operacionais para as IAs, enquanto o `graphify` mapeia visualmente as relações estruturais e o grafo de dependências do código.
+* **Regra de Atualização Simultânea**: Toda e qualquer alteração estrutural no projeto (criação de rotas, páginas, componentes, services, contexts ou hooks) DEVE acionar a atualização do mapa do `graphify` no mesmo ciclo/commit em que o `AGENTS.md` for atualizado.
+* **Configuração no Git e Scripts**:
+  - Script no `package.json`: `"graphify": "npx graphify"`
+  - A pasta gerada pelo graphify (`graphify-out/`) deve constar obrigatoriamente no `.gitignore` para evitar poluição do repositório, mas ser mantida atualizada localmente para consumo das IAs.
+
 ---
 
 ## 1. Visão geral
@@ -459,3 +506,4 @@ Documentos na coleção `configuracoes`:
 | 2026-10-31 | Implementação das funcionalidades de **Assinaturas Recorrentes no Cartão** e **"Apertou a Fatura" (Parcelamento de Fatura)**: criação do service `assinaturasService.js`, novas coleções Firestore `assinaturas` e `assinaturas_ingrid` com RBAC estrito e regras no `firestore.rules`, modais `ModalAssinaturasCartao` e `ModalApertouFatura`, aba dedicada de assinatura no `ModalNovoGasto`, contador com atalho na Home e congelamento/substituição de faturas por Entrada com projeção direta de parcelas futuras e sincronização mútua entre Renato e Ingrid. |
 | 2026-10-31 | Correção e blindagem de datas e parcelas em **"Apertou a Fatura"**: cálculo de datas de parcelas $1/N$ a $N/N$ fixado deterministicamente no dia 10 do mês do ciclo ($M + i$) para evitar vazamento de ciclo no fechamento (ex: dia 31 jogando parcela para 2 meses à frente); eliminação de duplicidades e limpeza de parcelas órfãs no Firestore (`removerGastosOrfaosParcelamentoAPI`); habilitação de botões "Excluir" e "Acordo" diretamente nos meses futuros de faturas e deploy das regras do Firestore via Firebase CLI (`firebase deploy --only firestore:rules`). |
 | 2026-11-01 | Sincronização cruzada e correção do "Apertou a Fatura" no perfil da Ingrid: congelamento de compras originais de cartões parcelados pelo Renato em "Cartões do Renato (A Pagar)" no ciclo do acordo e injeção automática da cota da parceira na Entrada da fatura. |
+| 2026-11-22 | Adição das regras obrigatórias 3, 4 e 5 no `AGENTS.md`: Gestão e Decomposição de Demandas em Issues (Linear / MCP & Modo Copiável), Proibição de arquivos temporários/EGM/testes na raiz (`00-anything/`) e Dependência Obrigatória do `graphify` com sincronização contínua. |
