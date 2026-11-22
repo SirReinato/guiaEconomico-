@@ -230,7 +230,7 @@ guiaEconomico-/
 │   │   └── Comparativo/, Configuracoes/, Relatorios/  # STUBS (~7 linhas)
 │   ├── components/            # Uma pasta por componente, arquivo index.jsx
 │   │   ├── Card/, CardComparativo/, CardGastosAbas/, CardSaldoGrafico/
-│   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/, PlanoPrincipalDetalhado/
+│   │   ├── CardMeta/, CenariosMeta/, GraficoEvolucaoMeta/, ModalNovaMeta/, PlanoIA/, PlanoPrincipalDetalhado/, CalculadoraFlutuante/
 │   │   ├── ListaGanhosMozi/, ListaProximosMeses/, Logo/, AcessoRestritoInsights/
 │   │   └── Modal*/ (AjusteFaturaCartao, AjusteReserva, ApertouFatura, AssinaturasCartao, EditarGasto, EditarReceita,
 │   │                FaturaItau, GastoEssencial, GerenciarCartoes, NovoGasto, Receita)
@@ -447,6 +447,10 @@ Documentos na coleção `configuracoes`:
    - **Fixação e Congelamento**: No mês do acordo, as compras originais daquele cartão ficam visíveis com tag `❄️ Congelado por acordo de fatura` e não somam no total da fatura. A Entrada é fixada no topo da lista (em 1 linha se 100% de um, ou em 2 linhas separadas e explícitas se dividida: a parte dele e a parte da mulher).
    - **Projeção Futura e Sincronização Bidirecional**: As parcelas futuras ($1/N$ a $N/N$) são gravadas como lançamentos de cartão com `origem: "parcelamento_fatura"` para os próximos $N$ meses. Se um dos parceiros parcelar a fatura de um cartão (ex: Renato parcelando Banco do Brasil ou Nubank), o cartão integrado do outro parceiro (`Cartões do Renato (A Pagar)` no perfil da Ingrid, ou `Cartões da Ingrid (A Pagar)` no perfil do Renato) sincroniza automaticamente no ciclo do acordo: as compras originais daquele cartão ficam congeladas (`❄️ Substituído pela Entrada do Parcelamento`) e não somam no total a pagar, sendo injetada a linha explícita da Entrada correspondente à parte devida pela parceira (`🚨 Entrada Fatura <Cartão> (Minha Parte)`). As parcelas futuras ($1/N$ a $N/N$) divididas entram diretamente no histórico e faturas futuras de ambos.
    - Permite desfazer o acordo a qualquer momento, restaurando instantaneamente as compras originais e cancelando as parcelas futuras geradas.
+13. **Insights — Reflexo do mês anterior, ajuste manual por mês e Calculadora Flutuante** (`src/pages/Insights/index.jsx`, `src/utils/reservaCalculos.js`, `src/services/reservaService.js`, `src/components/CalculadoraFlutuante`):
+    - O aporte/retirada de cada mês `M` na projeção da Reserva de Emergência reflete exclusivamente a sobra/déficit líquido do mês anterior `M - 1` (`aportesConfirmados[chaveMesAnterior]`, `mapaSobrasReais[chaveMesAnterior]` ou `mapaProjecoes[chaveMesAnterior]`), sem alterar o cálculo da tela inicial (`Home`).
+    - A partir de `2026-09`, o usuário pode editar manualmente o `Saldo Final` de qualquer mês (`saldosManuais` em `configuracoes/reserva` / `reserva_ingrid` e `firestore.rules`), exibindo a tag `Ajustado manual` e propagando o novo valor como saldo inicial dos meses seguintes.
+    - `CalculadoraFlutuante` é montada globalmente em `Outlet/index.jsx`, disponível em todas as páginas (desktop e mobile).
 
 ---
 
@@ -507,3 +511,4 @@ Documentos na coleção `configuracoes`:
 | 2026-10-31 | Correção e blindagem de datas e parcelas em **"Apertou a Fatura"**: cálculo de datas de parcelas $1/N$ a $N/N$ fixado deterministicamente no dia 10 do mês do ciclo ($M + i$) para evitar vazamento de ciclo no fechamento (ex: dia 31 jogando parcela para 2 meses à frente); eliminação de duplicidades e limpeza de parcelas órfãs no Firestore (`removerGastosOrfaosParcelamentoAPI`); habilitação de botões "Excluir" e "Acordo" diretamente nos meses futuros de faturas e deploy das regras do Firestore via Firebase CLI (`firebase deploy --only firestore:rules`). |
 | 2026-11-01 | Sincronização cruzada e correção do "Apertou a Fatura" no perfil da Ingrid: congelamento de compras originais de cartões parcelados pelo Renato em "Cartões do Renato (A Pagar)" no ciclo do acordo e injeção automática da cota da parceira na Entrada da fatura. |
 | 2026-11-22 | Adição das regras obrigatórias 3, 4 e 5 no `AGENTS.md`: Gestão e Decomposição de Demandas em Issues (Linear / MCP & Modo Copiável), Proibição de arquivos temporários/EGM/testes na raiz (`00-anything/`) e Dependência Obrigatória do `graphify` com sincronização contínua. |
+| 2026-11-22 | Correção do reflexo mês anterior (`M - 1` → `M`) na projeção de `Insights`, edição manual do Saldo Final por mês a partir de set/2026 (`saldosManuais` + tag `Ajustado manual` + `firestore.rules`) e criação da `CalculadoraFlutuante` global em `Outlet/index.jsx`. |
